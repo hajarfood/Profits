@@ -269,12 +269,12 @@
 <!-- Core libs -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-<!-- Firebase + Firestore -->
+<!-- Firebase + Firestore (تهيئة) -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-  import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+  import { getFirestore } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-  // ✅ إعدادات مشروعك
+  // ✅ إعدادات مشروعك (كما أرسلتها)
   const firebaseConfig = {
     apiKey: "AIzaSyDgtifnouF0AGzBxWls3wPk7gikSqOBFm0",
     authDomain: "monthly-prfits.firebaseapp.com",
@@ -289,6 +289,7 @@
   window._db = getFirestore(app); // نوفره للسكربت الآخر
 </script>
 
+<!-- التطبيق -->
 <script>
 /* -------------------- i18n: عربي / إنجليزي -------------------- */
 const I18N = {
@@ -327,7 +328,6 @@ function applyLang(){
   });
   document.documentElement.setAttribute('lang', LANG);
   document.documentElement.setAttribute('dir', LANG==='ar'?'rtl':'ltr');
-  // تحديث عناوين الأقسام
   renderPage();
 }
 document.getElementById('btn-ar').onclick=()=>{ LANG='ar'; document.getElementById('btn-ar').className='btn btn-light btn-sm'; document.getElementById('btn-en').className='btn btn-outline-light btn-sm'; applyLang(); };
