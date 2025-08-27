@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title data-i18n="app_title">برنامج الأرباح الشهري</title>
+
+<!-- Bootstrap RTL -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+<!-- SheetJS -->
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+
+<style>
+  :root{
+    --brand:#0d47a1;
+  }
+  body{background:#fff;color:#222}
+  .navbar{background:var(--brand)}
+  .navbar .navbar-brand,.navbar .btn,.navbar .nav-link{color:#fff}
+  .navbar .btn.btn-light{color:var(--brand)}
+  .sidebar{min-height:100vh;background:#f7f9fb;border-left:1px solid #e7eef4}
+  .sidebar .list-group-item{border:none;background:transparent}
+  .sidebar .list-group-item.active{background:var(--brand);color:#fff;border-radius:.5rem}
+  .card{box-shadow:0 2px 8px rgba(0,0,0,.06);border:1px solid #e9ecef}
+  .table td input[type="text"], .table td input[type="number"]{width:100%;border:none;background:transparent}
+  .table td input:focus{outline:none;border-bottom:1px solid #0d6efd}
+  .muted{color:#6c757d}
+  .profit-pos{color:#198754;font-weight:700}
+  .profit-neg{color:#dc3545;font-weight:700}
+  .section-title{font-weight:700}
+  .cloud-badge{font-size:.8rem;padding:.25rem .5rem;border-radius:.5rem}
+  .cloud-ok{background:#e6f4ea;color:#137333}
+  .cloud-err{background:#fde8e8;color:#b42318}
+  @media print{
+    .no-print{display:none!important}
+    .sidebar{display:none}
+    .container-fluid{padding:0}
+    main{width:100%}
+    .card{box-shadow:none}
+  }
+</style>
+</head>
+<body>
+
+<!-- ====== NAVBAR ====== -->
+<nav class="navbar navbar-expand-lg">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="#" data-i18n="app_title">📊 برنامج الأرباح الشهري</a>
+
+    <div class="ms-auto d-flex gap-2 align-items-center">
+      <!-- language -->
+      <button id="langBtn" class="btn btn-outline-light btn-sm no-print" title="لغة / Language">عربي / EN</button>
+
+      <!-- cloud controls -->
+      <span id="cloudState" class="cloud-badge cloud-err no-print" data-i18n="cloud_local_only">يتم الحفظ محليًا فقط</span>
+      <button class="btn btn-light btn-sm no-print" id="btnCloudSave">💾 <span data-i18n="save_cloud">حفظ في السحابة</span></button>
+      <button class="btn btn-light btn-sm no-print" id="btnCloudLoad">☁️ <span data-i18n="load_cloud">استرجاع من السحابة</span></button>
+
+      <!-- io -->
+      <input type="file" id="importFile" class="d-none" accept=".json" />
+      <button class="btn btn-light btn-sm no-print" onclick="document.getElementById('importFile').click()">📥 <span data-i18n="import">استيراد بيانات</span></button>
+      <button class="btn btn-light btn-sm no-print" onclick="exportJSON()">📤 JSON</button>
+      <button class="btn btn-light btn-sm no-print" onclick="exportExcel()">📊 Excel</button>
+      <button class="btn btn-light btn-sm no-print" onclick="window.print()">🖨️ <span data-i18n="print">طباعة</span></button>
+    </div>
+  </div>
+</nav>
+
+<div class="container-fluid">
+  <div class="row g-0">
+    <!-- ====== SIDEBAR ====== -->
+    <aside class="col-12 col-lg-3 col-xl-2 sidebar p-3">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <h6 class="m-0 text-muted" data-i18n="branches">الفروع</h6>
+        <button class="btn btn-primary btn-sm" onclick="addBranch()">➕ <span data-i18n="add_branch">إضافة فرع</span></button>
+      </div>
+      <div id="branchList" class="list-group mb-4"></div>
+
+      <div class="mb-3">
+        <h6 class="text-muted" data-i18n="admin_dist_settings">إعدادات التوزيع الإداري</h6>
+        <div id="adminSettings" class="vstack gap-2"></div>
+        <small class="text-muted d-block mt-2" data-i18n="admin_hint">
+          * الفروع المفعَّلة فقط تتحمل المصروف الإداري المقسّط عند اختيار “توزيع على الفروع”.
+        </small>
+      </div>
+      <div class="mt-4">
+        <button class="btn btn-outline-danger btn-sm" onclick="if(confirm(t('confirm_wipe'))){localStorage.removeItem(STORE_KEY);location.reload()}">
+          <span data-i18n="wipe_all">مسح كل البيانات</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ====== MAIN ====== -->
+    <main class="col-12 col-lg-9 col-xl-10 p-3">
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <h4 id="branchTitle" class="m-0">—</h4>
+        <div class="ms-auto d-flex gap-2 align-items-center">
+          <label class="muted" data-i18n="report_month">شهر التقرير</label>
+          <input type="month" id="monthCurrent" class="form-control form-control-sm" style="width:160px">
+          <label class="muted" data-i18n="compare_with">مقارنة مع</label>
+          <input type="month" id="monthCompare" class="form-control form-control-sm" style="width:160px">
+          <button class="btn btn-outline-secondary btn-sm" onclick="copyFromPrevious()"><span data-i18n="copy_from_cmp">نسخ بنود الشهر المقارَن</span></button>
+          <button class="btn btn-outline-primary btn-sm" onclick="openInstallment()">➕ <span data-i18n="add_installment">مصروف مقسّط</span></button>
+        </div>
+      </div>
+
+      <hr/>
+
+      <!-- INCOME -->
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="section-title" data-i18n="income">الإيرادات</span>
+          <button class="btn btn-sm btn-outline-primary" onclick="addRow('income')">➕ <span data-i18n="add_item">إضافة بند</span></button>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-bordered m-0">
+              <thead class="table-light">
+                <tr>
+                  <th style="width:55%" data-i18n="col_item">البند</th>
+                  <th style="width:25%" data-i18n="col_amount">المبلغ</th>
+                  <th style="width:20%" class="no-print" data-i18n="actions">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="tbl-income"></tbody>
+              <tfoot>
+                <tr class="table-light">
+                  <th data-i18n="sum_income">مجموع الإيرادات</th>
+                  <th id="sum-income">0</th><th></th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- OPERATING -->
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="section-title" data-i18n="operating_exp">مصروفات تشغيل</span>
+          <button class="btn btn-sm btn-outline-primary" onclick="addRow('operating')">➕ <span data-i18n="add_item">إضافة بند</span></button>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-bordered m-0">
+              <thead class="table-light">
+                <tr>
+                  <th style="width:55%" data-i18n="col_item">البند</th>
+                  <th style="width:25%" data-i18n="col_amount">المبلغ</th>
+                  <th style="width:20%" class="no-print" data-i18n="actions">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="tbl-operating"></tbody>
+              <tfoot>
+                <tr class="table-light">
+                  <th data-i18n="sum_operating">مجموع مصروفات التشغيل</th>
+                  <th id="sum-operating">0</th><th></th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMIN -->
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="section-title" data-i18n="admin_exp">مصروفات إدارية</span>
+          <button class="btn btn-sm btn-outline-primary" onclick="addRow('admin')">➕ <span data-i18n="add_item">إضافة بند</span></button>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-bordered m-0">
+              <thead class="table-light">
+                <tr>
+                  <th style="width:55%" data-i18n="col_item">البند</th>
+                  <th style="width:25%" data-i18n="col_amount">المبلغ</th>
+                  <th style="width:20%" class="no-print" data-i18n="actions">إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="tbl-admin"></tbody>
+              <tfoot>
+                <tr class="table-light">
+                  <th data-i18n="sum_admin">مجموع المصروفات الإدارية</th>
+                  <th id="sum-admin">0</th><th></th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUMMARY -->
+      <div class="card">
+        <div class="card-header section-title" data-i18n="summary">الملخص</div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-3"><div class="p-3 border rounded bg-light"><span data-i18n="sum_income">مجموع الإيرادات</span>: <b id="s-inc">0</b></div></div>
+            <div class="col-md-3"><div class="p-3 border rounded bg-light"><span data-i18n="sum_expenses">مجموع المصروفات</span>: <b id="s-exp">0</b></div></div>
+            <div class="col-md-3"><div class="p-3 border rounded bg-light"><span data-i18n="profit">الربح</span>: <b id="s-profit" class="profit-pos">0</b></div></div>
+            <div class="col-md-3"><div class="p-3 border rounded bg-light"><span data-i18n="margin">نسبة الربح</span>: <b id="s-margin">0%</b></div></div>
+            <div class="col-12">
+              <div class="p-3 border rounded">
+                <span data-i18n="compare_with_month">المقارنة مع</span> <span id="cmp-month" class="muted">—</span>:
+                <span data-i18n="delta_amount">فرق المبلغ</span> <b id="cmp-amt">0</b> |
+                <span data-i18n="delta_pct">فرق النسبة</span> <b id="cmp-pct">0%</b>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ====== MODAL: INSTALLMENT ====== -->
+<div class="modal fade" id="installmentModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title" data-i18n="add_installment">إضافة مصروف مقسّط</h6>
+        <button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label" data-i18n="item_name">اسم البند</label>
+          <input id="inst-name" class="form-control" placeholder="مثال: صيانة سنوية">
+        </div>
+        <div class="mb-2">
+          <label class="form-label" data-i18n="section">القسم</label>
+          <select id="inst-section" class="form-select">
+            <option value="operating" data-i18n="operating_exp">تشغيل</option>
+            <option value="admin" data-i18n="admin_exp">إداري</option>
+          </select>
+        </div>
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label" data-i18n="total_amount">إجمالي المبلغ</label>
+            <input id="inst-total" type="number" class="form-control" value="0">
+          </div>
+          <div class="col-6">
+            <label class="form-label" data-i18n="months_count">عدد الأشهر</label>
+            <input id="inst-months" type="number" class="form-control" value="3" min="1">
+          </div>
+        </div>
+        <div class="row g-2 mt-1">
+          <div class="col-6">
+            <label class="form-label" data-i18n="start_month">شهر البداية</label>
+            <input id="inst-start" type="month" class="form-control">
+          </div>
+          <div class="col-6">
+            <label class="form-label" data-i18n="scope">النطاق</label>
+            <select id="inst-scope" class="form-select">
+              <option value="single" data-i18n="scope_single">هذا الفرع فقط</option>
+              <option value="weighted" data-i18n="scope_weighted">توزيع على الفروع حسب الأوزان</option>
+            </select>
+          </div>
+        </div>
+        <small class="text-muted d-block mt-2" data-i18n="inst_hint">
+          سيُحمَّل تلقائيًا كل شهر: (الإجمالي ÷ عدد الأشهر). وإذا اخترت “توزيع على الفروع” فسيُقسَّم المبلغ الشهري حسب أوزان التوزيع للفروع المفعّلة.
+        </small>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="cancel">إلغاء</button>
+        <button class="btn btn-primary" onclick="saveInstallment()" data-i18n="save">حفظ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== SCRIPTS ====== -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+/* -------------------- إعداد السحابة -------------------- */
+/** ضَع رابط WebApp هنا (أنت أعطيتني هذا): **/
+const API_URL = "https://script.google.com/macros/s/AKfycbywnjmaNd7RltspzDNnaSz6_TyG785jH_K-mIqfpP33-vfLkcSodSHiHs_lcB4PPESG/exec";
+
+/** بروتوكول مبسّط:
+ *  POST {op:'save', payload: <DB object>}  -> {ok:true}
+ *  GET  ?op=load                             -> {ok:true, payload:{...}}
+ *  (لو سكربتك يستخدم أسماء مختلفة، فقط عدّل حقول op/param بسهولة هنا)
+ */
+async function cloudSave(){
+  try{
+    const res = await fetch(API_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({op:'save', payload: DB})
+    });
+    const data = await res.json();
+    if(data && data.ok){
+      setCloudState(true, t('cloud_saved_ok'));
+    }else{
+      throw new Error('bad response');
+    }
+  }catch(e){
+    setCloudState(false, t('cloud_error'));
+  }
+}
+async function cloudLoad(){
+  try{
+    const res = await fetch(API_URL + '?op=load', {method:'GET'});
+    const data = await res.json();
+    if(data && data.ok && data.payload){
+      DB = data.payload;
+      save(); // sync محليًا
+      location.reload();
+    }else{
+      throw new Error('bad response');
+    }
+  }catch(e){
+    alert(t('cloud_error_long'));
+    setCloudState(false, t('cloud_local_only'));
+  }
+}
+function setCloudState(ok,msg){
+  const el = document.getElementById('cloudState');
+  el.textContent = msg || (ok ? t('cloud_on') : t('cloud_local_only'));
+  el.className = 'cloud-badge ' + (ok ? 'cloud-ok' : 'cloud-err');
+}
+
+/* -------------------- البيانات والحفظ -------------------- */
+const STORE_KEY = "profit_manager_v2_i18n_cloud";
+const DEFAULT = {
+  branches: [
+    {id: cid(), name:"كلاسيك", active:true, weight:1, includeAdmin:true},
+    {id: cid(), name:"مودرن",  active:true, weight:1, includeAdmin:true},
+    {id: cid(), name:"هجر فود",active:true, weight:1, includeAdmin:false},
+    {id: cid(), name:"فرع 3",  active:true, weight:1, includeAdmin:true}
+  ],
+  months: {},         // {"YYYY-MM": {branchId: {income:[], operating:[], admin:[]}}}
+  installments: [],   // سلاسل مقسطة
+  lang: "ar"          // اللغة الحالية
+};
+function load(){ return JSON.parse(localStorage.getItem(STORE_KEY) || JSON.stringify(DEFAULT)); }
+function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(DB)); }
+function cid(){ return Math.random().toString(36).slice(2,10); }
+
+let DB = load();
+let currentBranchId = DB.branches[0]?.id || null;
+let currentMonth = new Date().toISOString().slice(0,7);
+let compareMonth = "";
+
+/* -------------------- ترجمات (عربي/English) -------------------- */
+const L = {
+  ar: {
+    app_title:"برنامج الأرباح الشهري",
+    cloud_local_only:"يتم الحفظ محليًا فقط",
+    cloud_on:"مرتبط بالسحابة",
+    cloud_saved_ok:"تم الحفظ في السحابة",
+    cloud_error:"تعذّر الاتصال بالسحابة",
+    cloud_error_long:"تعذّر الاتصال بالسحابة. تأكد من صلاحيات السكربت والرابط ثم أعد المحاولة.",
+    save_cloud:"حفظ في السحابة",
+    load_cloud:"استرجاع من السحابة",
+    import:"استيراد بيانات",
+    print:"طباعة",
+    branches:"الفروع",
+    add_branch:"إضافة فرع",
+    admin_dist_settings:"إعدادات التوزيع الإداري",
+    admin_hint:"* الفروع المفعَّلة فقط تتحمل المصروف الإداري المقسّط عند اختيار “توزيع على الفروع”.",
+    wipe_all:"مسح كل البيانات",
+    confirm_wipe:"متأكد من مسح كل البيانات؟ لا يمكن التراجع.",
+    report_month:"شهر التقرير",
+    compare_with:"مقارنة مع",
+    copy_from_cmp:"نسخ بنود الشهر المقارَن",
+    add_installment:"مصروف مقسّط",
+    income:"الإيرادات",
+    operating_exp:"مصروفات تشغيل",
+    admin_exp:"مصروفات إدارية",
+    add_item:"إضافة بند",
+    col_item:"البند",
+    col_amount:"المبلغ",
+    actions:"إجراءات",
+    sum_income:"مجموع الإيرادات",
+    sum_operating:"مجموع مصروفات التشغيل",
+    sum_admin:"مجموع المصروفات الإدارية",
+    summary:"الملخص",
+    sum_expenses:"مجموع المصروفات",
+    profit:"الربح",
+    margin:"نسبة الربح",
+    compare_with_month:"المقارنة مع",
+    delta_amount:"فرق المبلغ",
+    delta_pct:"فرق النسبة",
+    item_name:"اسم البند",
+    section:"القسم",
+    total_amount:"إجمالي المبلغ",
+    months_count:"عدد الأشهر",
+    start_month:"شهر البداية",
+    scope:"النطاق",
+    scope_single:"هذا الفرع فقط",
+    scope_weighted:"توزيع على الفروع حسب الأوزان",
+    inst_hint:"سيُحمَّل تلقائيًا كل شهر: (الإجمالي ÷ عدد الأشهر). وإذا اخترت “توزيع على الفروع” فسيُقسَّم المبلغ الشهري حسب أوزان التوزيع للفروع المفعّلة.",
+    cancel:"إلغاء",
+    save:"حفظ",
+    rename:"تعديل",
+    delete:"حذف",
+    item_new:"بند جديد",
+    pick_cmp_first:"اختر شهر المقارنة أولاً.",
+    confirm_copy:"نسخ البنود من شهر المقارنة إلى شهر التقرير (لن يُستبدل المقسّط)؟",
+    invalid_file:"ملف غير صالح"
+  },
+  en: {
+    app_title:"Monthly Profit Manager",
+    cloud_local_only:"Local-only save",
+    cloud_on:"Cloud connected",
+    cloud_saved_ok:"Saved to cloud",
+    cloud_error:"Cloud connection failed",
+    cloud_error_long:"Could not reach the cloud. Check Apps Script permissions/URL and try again.",
+    save_cloud:"Save to Cloud",
+    load_cloud:"Load from Cloud",
+    import:"Import",
+    print:"Print",
+    branches:"Branches",
+    add_branch:"Add Branch",
+    admin_dist_settings:"Admin Overhead Distribution",
+    admin_hint:"* Only enabled branches share admin overhead when “distribute across branches” is selected.",
+    wipe_all:"Wipe all data",
+    confirm_wipe:"Are you sure you want to wipe all data? This cannot be undone.",
+    report_month:"Report Month",
+    compare_with:"Compare With",
+    copy_from_cmp:"Copy items from comparison month",
+    add_installment:"Installment Expense",
+    income:"Revenue",
+    operating_exp:"Operating Expenses",
+    admin_exp:"Administrative Expenses",
+    add_item:"Add Item",
+    col_item:"Item",
+    col_amount:"Amount",
+    actions:"Actions",
+    sum_income:"Total Revenue",
+    sum_operating:"Total Operating",
+    sum_admin:"Total Administrative",
+    summary:"Summary",
+    sum_expenses:"Total Expenses",
+    profit:"Profit",
+    margin:"Profit Margin",
+    compare_with_month:"Compare with",
+    delta_amount:"Δ Amount",
+    delta_pct:"Δ Margin",
+    item_name:"Item Name",
+    section:"Section",
+    total_amount:"Total Amount",
+    months_count:"Months",
+    start_month:"Start Month",
+    scope:"Scope",
+    scope_single:"This branch only",
+    scope_weighted:"Distribute by branch weights",
+    inst_hint:"The monthly charge is (total ÷ months). If distributed, the monthly share is split by active branch weights.",
+    cancel:"Cancel",
+    save:"Save",
+    rename:"Rename",
+    delete:"Delete",
+    item_new:"New item",
+    pick_cmp_first:"Select the comparison month first.",
+    confirm_copy:"Copy items from the comparison month into the report month (installments remain auto)?",
+    invalid_file:"Invalid file"
+  }
+};
+function t(key){ return L[DB.lang]?.[key] || key; }
+function applyI18n(){
+  document.documentElement.lang = DB.lang;
+  document.documentElement.dir  = (DB.lang==='ar')?'rtl':'ltr';
+  // النصوص
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  // زر اللغة
+  document.getElementById('langBtn').textContent = (DB.lang==='ar')?'عربي / EN':'EN / عربي';
+  // تحديث عناوين و placeholders ديناميكية لاحقًا إن لزم
+}
+
+/* -------------------- واجهة الفروع والإعدادات -------------------- */
+function renderBranches(){
+  const list = document.getElementById('branchList');
+  list.innerHTML = "";
+  DB.branches.forEach(b=>{
+    const a = document.createElement('a');
+    a.href="#"; a.className="list-group-item d-flex align-items-center justify-content-between";
+    if(b.id===currentBranchId) a.classList.add('active');
+    a.innerHTML = `<span>${b.name}</span>
+      <span class="no-print d-flex gap-1">
+        <button class="btn btn-sm btn-outline-secondary" onclick="renameBranch('${b.id}')">${t('rename')}</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="delBranch('${b.id}')">${t('delete')}</button>
+      </span>`;
+    a.onclick=(e)=>{e.preventDefault(); currentBranchId=b.id; renderPage();}
+    list.appendChild(a);
+  });
+
+  // إعدادات الأوزان والإداري
+  const box = document.getElementById('adminSettings'); box.innerHTML="";
+  DB.branches.forEach(b=>{
+    const row = document.createElement('div');
+    row.className="d-flex align-items-center gap-2";
+    row.innerHTML = `
+      <input type="checkbox" class="form-check-input" ${b.includeAdmin?'checked':''}
+        onchange="bToggleAdmin('${b.id}',this.checked)">
+      <span class="me-1" style="width:140px">${b.name}</span>
+      <input type="number" class="form-control form-control-sm" style="width:90px"
+        value="${b.weight}" min="0" step="0.1" onchange="bSetWeight('${b.id}',this.value)">
+      <span class="muted">${DB.lang==='ar'?'وزن':'Weight'}</span>`;
+    box.appendChild(row);
+  });
+}
+function bToggleAdmin(id, val){ const b=DB.branches.find(x=>x.id===id); if(b){b.includeAdmin=!!val; save();} }
+function bSetWeight(id, v){ const b=DB.branches.find(x=>x.id===id); if(b){b.weight=parseFloat(v)||0; save();} }
+function addBranch(){
+  const name=prompt(DB.lang==='ar'?'اسم الفرع الجديد؟':'New branch name?',"");
+  if(!name) return;
+  DB.branches.push({id:cid(), name, active:true, weight:1, includeAdmin:true});
+  save(); renderBranches();
+}
+function renameBranch(id){
+  const b=DB.branches.find(x=>x.id===id); if(!b) return;
+  const name=prompt(DB.lang==='ar'?'الاسم الجديد:':'New name:', b.name); if(!name) return;
+  b.name=name; save(); renderBranches(); renderPage();
+}
+function delBranch(id){
+  if(!confirm(DB.lang==='ar'?'حذف الفرع وجميع بياناته؟':'Delete branch and all its data?')) return;
+  DB.branches = DB.branches.filter(x=>x.id!==id);
+  for(const m in DB.months){ if(DB.months[m][id]) delete DB.months[m][id]; }
+  DB.installments = DB.installments.filter(i=>i.branchId!==id);
+  if(currentBranchId===id) currentBranchId = DB.branches[0]?.id || null;
+  save(); renderBranches(); renderPage();
+}
+
+/* -------------------- صفحة الفرع -------------------- */
+function ensureMonthBranch(mm, bid){
+  DB.months[mm] = DB.months[mm] || {};
+  DB.months[mm][bid] = DB.months[mm][bid] || {income:[], operating:[], admin:[]};
+  return DB.months[mm][bid];
+}
+function renderPage(){
+  if(!currentBranchId){ document.getElementById('branchTitle').textContent="—"; return; }
+  document.getElementById('branchTitle').textContent =
+    DB.branches.find(b=>b.id===currentBranchId)?.name || "—";
+  const mCur = document.getElementById('monthCurrent'); mCur.value = currentMonth;
+  const mCmp = document.getElementById('monthCompare'); mCmp.value = compareMonth;
+
+  renderBranches(); // لتحديث تمييز الفرع
+  renderTable('income'); renderTable('operating'); renderTable('admin');
+  updateSummary();
+}
+document.getElementById('monthCurrent').addEventListener('change', (e)=>{ currentMonth=e.target.value; renderPage(); });
+document.getElementById('monthCompare').addEventListener('change', (e)=>{ compareMonth=e.target.value; updateSummary(); });
+
+function addRow(section){
+  const rows = ensureMonthBranch(currentMonth, currentBranchId)[section];
+  rows.push({name:t('item_new'), amount:0});
+  save(); renderTable(section); updateSummary();
+}
+function delRow(section, idx){
+  ensureMonthBranch(currentMonth, currentBranchId)[section].splice(idx,1);
+  save(); renderTable(section); updateSummary();
+}
+function renderTable(section){
+  const tbody = document.getElementById('tbl-'+section); tbody.innerHTML="";
+  const rows = ensureMonthBranch(currentMonth, currentBranchId)[section];
+
+  // البنود المقسطة يتم حقنها تلقائيًا (غير قابلة للتعديل/الحذف)
+  const autoRows = calcInstallmentsFor(currentMonth, currentBranchId, section)
+    .map(x=>({name:`( ${DB.lang==='ar'?'مقسّط':'Installment'} ) ${x.name}`, amount:x.amount, _auto:true}));
+  const all = rows.concat(autoRows);
+
+  all.forEach((r, i)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r._auto ? r.name : `<input type="text" value="${r.name}" oninput="editCell('${section}',${i},'name',this.value)">`}</td>
+      <td>${r._auto ? numberFmt(r.amount) : `<input type="number" value="${r.amount}" oninput="editCell('${section}',${i},'amount',this.value)">`}</td>
+      <td class="no-print">${r._auto ? '<span class="text-muted">—</span>' : `<button class="btn btn-sm btn-outline-danger" onclick="delRow('${section}',${i})">${t('delete')}</button>`}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('sum-'+section).textContent = numberFmt(sumRows(all));
+}
+function editCell(section, idx, field, val){
+  const rows = ensureMonthBranch(currentMonth, currentBranchId)[section];
+  if(!rows[idx]) return;
+  rows[idx][field] = field==='amount' ? (parseFloat(val)||0) : val;
+  save(); updateSummary();
+}
+function sumRows(rows){ return rows.reduce((s,r)=> s + (+r.amount||0), 0); }
+function numberFmt(n){
+  const loc = (DB.lang==='ar')?'ar-EG':'en-US';
+  return (+n||0).toLocaleString(loc, {maximumFractionDigits:2});
+}
+
+/* -------------------- المصروفات المقسطة -------------------- */
+const instModal = new bootstrap.Modal('#installmentModal');
+function openInstallment(){
+  document.getElementById('inst-name').value="";
+  document.getElementById('inst-total').value=0;
+  document.getElementById('inst-months').value=3;
+  document.getElementById('inst-section').value='operating';
+  document.getElementById('inst-start').value = currentMonth;
+  document.getElementById('inst-scope').value='single';
+  instModal.show();
+}
+function saveInstallment(){
+  const name = document.getElementById('inst-name').value.trim();
+  const total = parseFloat(document.getElementById('inst-total').value)||0;
+  const months = Math.max(1, parseInt(document.getElementById('inst-months').value)||1);
+  const start = document.getElementById('inst-start').value;
+  const section = document.getElementById('inst-section').value;
+  const scope = document.getElementById('inst-scope').value;
+  if(!name || !start){ alert(DB.lang==='ar'?'أكمل الحقول.':'Please complete the fields.'); return; }
+  DB.installments.push({
+    id: cid(), name, total, months, start, section,
+    scope, branchId: currentBranchId, created: new Date().toISOString()
+  });
+  save(); instModal.hide(); renderTable(section); updateSummary();
+}
+function monthAdd(ym, k){
+  const [y,m]=ym.split('-').map(Number);
+  const d=new Date(y, m-1+k, 1);
+  return d.toISOString().slice(0,7);
+}
+function calcInstallmentsFor(ym, bid, section){
+  const perMonth = [];
+  DB.installments.forEach(ins=>{
+    if(ins.section!==section) return;
+    const end = monthAdd(ins.start, ins.months-1);
+    if(ym < ins.start || ym > end) return;
+
+    const mAmount = ins.total / ins.months;
+    if(ins.scope==='single'){
+      if(ins.branchId===bid) perMonth.push({name:ins.name, amount:mAmount});
+    }else{
+      // توزيع بالوزن، مع قيد شمول الإداري فقط لمن مُفعّل لديه includeAdmin
+      const eligible = DB.branches.filter(b=>{
+        if(section==='admin') return b.includeAdmin;
+        return true;
+      });
+      const weights = eligible.reduce((s,b)=> s+(+b.weight||0), 0) || 1;
+      const b = DB.branches.find(x=>x.id===bid);
+      const w = eligible.find(x=>x.id===bid) ? ((+b.weight||0)/weights) : 0;
+      perMonth.push({name:ins.name, amount: mAmount * w});
+    }
+  });
+  return perMonth;
+}
+
+/* -------------------- الملخص والمقارنة -------------------- */
+function computeTotals(month, bid){
+  const incRows = ensureMonthBranch(month, bid)['income'].concat(
+    calcInstallmentsFor(month, bid, 'income') // احتياطيًا لو احتجته مستقبلاً
+  );
+  const opRows  = ensureMonthBranch(month, bid)['operating'].concat(
+    calcInstallmentsFor(month, bid, 'operating')
+  );
+  const adRows  = ensureMonthBranch(month, bid)['admin'].concat(
+    calcInstallmentsFor(month, bid, 'admin')
+  );
+
+  const inc = sumRows(incRows);
+  const op  = sumRows(opRows);
+  const ad  = sumRows(adRows);
+  const exp = op + ad;
+  const profit = inc - exp;
+  const margin = inc>0 ? (profit/inc*100) : 0;
+  return {inc, op, ad, exp, profit, margin};
+}
+function updateSummary(){
+  const tts = computeTotals(currentMonth, currentBranchId);
+  document.getElementById('s-inc').textContent = numberFmt(tts.inc);
+  document.getElementById('s-exp').textContent = numberFmt(tts.exp);
+  const p = document.getElementById('s-profit');
+  p.textContent = numberFmt(tts.profit);
+  p.className = tts.profit>=0 ? 'profit-pos' : 'profit-neg';
+  document.getElementById('s-margin').textContent = (tts.margin||0).toFixed(2)+'%';
+
+  let deltaAmt=0, deltaPct=0;
+  if(compareMonth){
+    const c = computeTotals(compareMonth, currentBranchId);
+    deltaAmt = tts.profit - c.profit;
+    const pctA = tts.inc>0 ? (tts.profit/tts.inc*100) : 0;
+    const pctB = c.inc>0 ? (c.profit/c.inc*100) : 0;
+    deltaPct = pctA - pctB;
+    document.getElementById('cmp-month').textContent = compareMonth;
+  }else{
+    document.getElementById('cmp-month').textContent = '—';
+  }
+  document.getElementById('cmp-amt').textContent = numberFmt(deltaAmt);
+  document.getElementById('cmp-pct').textContent = (deltaPct||0).toFixed(2)+'%';
+
+  // تحديث مجاميع الجداول (تشمل المقسّط)
+  document.getElementById('sum-income').textContent   = numberFmt(tts.inc);
+  document.getElementById('sum-operating').textContent= numberFmt(tts.op);
+  document.getElementById('sum-admin').textContent    = numberFmt(tts.ad);
+}
+
+/* -------------------- نسخ من شهر المقارنة -------------------- */
+function copyFromPrevious(){
+  if(!compareMonth){ alert(t('pick_cmp_first')); return; }
+  if(!confirm(t('confirm_copy'))) return;
+  const src = ensureMonthBranch(compareMonth, currentBranchId);
+  const dst = ensureMonthBranch(currentMonth, currentBranchId);
+  ['income','operating','admin'].forEach(sec=>{
+    dst[sec] = JSON.parse(JSON.stringify(src[sec]||[]));
+  });
+  save(); renderTable('income'); renderTable('operating'); renderTable('admin'); updateSummary();
+}
+
+/* -------------------- استيراد/تصدير -------------------- */
+function exportJSON(){
+  const blob = new Blob([JSON.stringify(DB, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download='profit-data.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+document.getElementById('importFile').addEventListener('change', (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => { try{ DB = JSON.parse(r.result); save(); location.reload(); } catch{ alert(t('invalid_file')); } };
+  r.readAsText(f);
+});
+function exportExcel(){
+  const wb = XLSX.utils.book_new();
+  const months = Object.keys(DB.months).sort();
+  if(months.length===0){ alert(DB.lang==='ar'?'لا توجد بيانات.':'No data.'); return; }
+  months.forEach(mm=>{
+    DB.branches.forEach(b=>{
+      if(!DB.months[mm][b.id]) return;
+      const t = computeTotals(mm, b.id);
+      const rows = [
+        [DB.lang==='ar'?'الفرع':'Branch', b.name],
+        [DB.lang==='ar'?'الشهر':'Month', mm], [],
+        [tLabel('income')],[t('col_item'), t('col_amount')]
+      ];
+      (DB.months[mm][b.id].income || []).forEach(r=> rows.push([r.name, r.amount]));
+      rows.push([DB.lang==='ar'?'(مقسّط) — محسوب تلقائياً':'(Installments) — auto', ""]);
+      rows.push([t('sum_income'), t.inc]); rows.push([]);
+      rows.push([t('operating_exp')],[t('col_item'),t('col_amount')]);
+      (DB.months[mm][b.id].operating || []).forEach(r=> rows.push([r.name, r.amount]));
+      rows.push([DB.lang==='ar'?'(يشمل المقسّط الشهري)':'(includes monthly installments)', ""]);
+      rows.push([t('sum_operating'), t.op]); rows.push([]);
+      rows.push([t('admin_exp')],[t('col_item'),t('col_amount')]);
+      (DB.months[mm][b.id].admin || []).forEach(r=> rows.push([r.name, r.amount]));
+      rows.push([DB.lang==='ar'?'(يشمل المقسّط الشهري)':'(includes monthly installments)', ""]);
+      rows.push([t('sum_admin'), t.ad]); rows.push([]);
+      rows.push([t('profit'), t.profit]);
+      rows.push([t('margin'), (t.margin||0).toFixed ? (t.margin||0).toFixed(2)+"%" : t.margin+"%"]);
+
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, `${b.name}-${mm}`);
+    });
+  });
+  XLSX.writeFile(wb, (DB.lang==='ar'?"تقارير-الأرباح":"Profit-Reports")+".xlsx");
+}
+function tLabel(sectionKey){
+  if(sectionKey==='income') return t('income');
+  if(sectionKey==='operating') return t('operating_exp');
+  if(sectionKey==='admin') return t('admin_exp');
+  return sectionKey;
+}
+
+/* -------------------- لغة / أزرار سحابة -------------------- */
+document.getElementById('langBtn').addEventListener('click', ()=>{
+  DB.lang = (DB.lang==='ar'?'en':'ar'); save(); applyI18n(); renderBranches(); renderPage();
+});
+document.getElementById('btnCloudSave').addEventListener('click', cloudSave);
+document.getElementById('btnCloudLoad').addEventListener('click', cloudLoad);
+
+/* -------------------- تهيئة -------------------- */
+(function init(){
+  currentMonth = new Date().toISOString().slice(0,7);
+  compareMonth = "";
+  applyI18n();
+  setCloudState(false, t('cloud_local_only'));   // حالة افتراضية؛ ستتغير بعد أول حفظ ناجح
+  renderBranches();
+  renderPage();
+})();
+</script>
+</body>
+</html>
