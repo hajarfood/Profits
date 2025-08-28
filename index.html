@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>برنامج الأرباح الشهري</title>
+
+<!-- Bootstrap RTL -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+<!-- SheetJS -->
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<style>
+  :root{ --brand:#0d47a1; --muted:#6c757d; }
+  body{background:#fff;color:#222}
+  .navbar{background:var(--brand)}
+  .navbar .navbar-brand,.navbar .btn,.navbar .nav-link{color:#fff}
+  .navbar .btn.btn-light{color:var(--brand)}
+  .sidebar{min-height:100vh;background:#f8f9fb;border-left:1px solid #e7ebf0}
+  .sidebar .list-group-item{border:none;background:transparent}
+  .sidebar .list-group-item.active{background:var(--brand);color:#fff;border-radius:.5rem}
+  .card{box-shadow:0 2px 10px rgba(0,0,0,.05);border:1px solid #eef1f4}
+  .table td input[type="text"], .table td input[type="number"]{width:100%;border:none;background:transparent}
+  .table td input:focus{outline:none;border-bottom:1px solid #0d6efd}
+  .muted{color:var(--muted)}
+  .profit-pos{color:#198754;font-weight:700}
+  .profit-neg{color:#dc3545;font-weight:700}
+  .section-title{font-weight:700}
+  .section-head{cursor:pointer;user-select:none}
+  .badge-soft{background:#eef2ff;color:#2b3a67;border:1px solid #dfe7ff}
+  .pill{padding:.2rem .5rem;border-radius:1rem;border:1px solid #e5e8ee;background:#fff}
+  .disabled-overlay{pointer-events:none;opacity:.6}
+  .clicky{cursor:pointer}
+  /* Login overlay */
+  #loginWrap{
+    position:fixed;inset:0;background:#f6f8fb;display:flex;align-items:center;justify-content:center;z-index:9999
+  }
+  #loginCard{max-width:420px;width:92%}
+  @media print{
+    .no-print{display:none!important}
+    .sidebar{display:none}
+    .container-fluid{padding:0}
+    main{width:100%}
+    .card{box-shadow:none}
+  }
+</style>
+</head>
+<body>
+
+<!-- ====== LOGIN ====== -->
+<div id="loginWrap" class="p-3">
+  <div id="loginCard" class="card shadow">
+    <div class="card-body">
+      <h5 class="mb-3 text-center">🔐 تسجيل الدخول</h5>
+      <div class="mb-2">
+        <label class="form-label">اسم المستخدم</label>
+        <input id="loginUser" class="form-control" placeholder="مثال: admin">
+      </div>
+      <div class="mb-2">
+        <label class="form-label">كلمة المرور</label>
+        <input id="loginPass" type="password" class="form-control" placeholder="••••••••">
+      </div>
+      <button id="btnLogin" class="btn btn-primary w-100 mt-2">دخول</button>
+      <small class="text-muted d-block mt-3">
+        حساب افتراضي دائم: <b>admin</b> / <b>admin442</b>
+      </small>
+    </div>
+  </div>
+</div>
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg">
+  <div class="container-fluid">
+    <a class="navbar-brand fw-bold" href="#">📊 برنامج الأرباح الشهري</a>
+    <div class="ms-auto d-flex flex-wrap gap-2 align-items-center">
+      <!-- لغة -->
+      <div class="btn-group no-print" role="group" aria-label="lang">
+        <button id="btn-ar" class="btn btn-light btn-sm">العربية</button>
+        <button id="btn-en" class="btn btn-outline-light btn-sm">English</button>
+      </div>
+
+      <!-- Users (admin only) -->
+      <button id="btnUsers" class="btn btn-light btn-sm no-print d-none">👤 <span data-i18n="users">المستخدمون</span></button>
+
+      <!-- استيراد/تصدير وطباعة -->
+      <input type="file" id="importFile" class="d-none" accept=".json" />
+      <button id="btnImport" class="btn btn-light btn-sm no-print" onclick="document.getElementById('importFile').click()">📥 <span data-i18n="import">استيراد بيانات</span></button>
+      <button id="btnExport" class="btn btn-light btn-sm no-print" onclick="exportJSON()">📤 <span data-i18n="exportJson">تصدير JSON</span></button>
+      <button class="btn btn-light btn-sm no-print" onclick="exportExcel()">📊 <span data-i18n="exportExcel">تصدير Excel</span></button>
+      <!-- سحابة -->
+      <button id="btnSaveCloud" class="btn btn-light btn-sm no-print" onclick="saveToCloud(DB)">☁️ <span data-i18n="saveCloud">حفظ سحابي</span></button>
+      <button class="btn btn-light btn-sm no-print" onclick="loadFromCloudBtn()">☁️ <span data-i18n="loadCloud">تحميل سحابي</span></button>
+      <button class="btn btn-light btn-sm no-print" onclick="window.print()">🖨️ <span data-i18n="print">طباعة</span></button>
+      <!-- session -->
+      <span id="whoami" class="badge bg-light text-dark ms-2"></span>
+      <button id="btnLogout" class="btn btn-outline-light btn-sm no-print">تسجيل خروج</button>
+    </div>
+  </div>
+</nav>
+
+<div class="container-fluid">
+  <div class="row g-0">
+    <!-- Sidebar -->
+    <aside class="col-12 col-lg-3 col-xl-2 sidebar p-3">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <h6 class="m-0 text-muted" data-i18n="branches">الفروع</h6>
+      </div>
+      <div id="branchList" class="list-group mb-4"></div>
+
+      <div class="mb-3">
+        <h6 class="text-muted" data-i18n="adminSettings">إعدادات التوزيع الإداري</h6>
+        <div id="adminSettings" class="vstack gap-2"></div>
+        <small class="text-muted d-block mt-2" data-i18n="adminHint">
+          * الفروع المفعَّلة فقط تتحمل المصروف الإداري المقسّط عند اختيار “توزيع على الفروع”.
+        </small>
+      </div>
+
+      <div class="mt-4 no-print">
+        <button class="btn btn-outline-danger btn-sm" onclick="if(confirm(t('confirmWipe'))){localStorage.removeItem(STORE_KEY);location.reload()}">
+          <span data-i18n="wipe">مسح كل البيانات المحلية</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="col-12 col-lg-9 col-xl-10 p-3">
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <h4 id="branchTitle" class="m-0">—</h4>
+        <span class="pill"><span class="muted" data-i18n="reportMonth">شهر التقرير</span>:
+          <input type="month" id="monthCurrent" class="form-control form-control-sm d-inline-block" style="width:160px"></span>
+        <span class="pill"><span class="muted" data-i18n="compareWith">مقارنة مع</span>:
+          <input type="month" id="monthCompare" class="form-control form-control-sm d-inline-block" style="width:160px"></span>
+        <button id="btnCopyFromCmp" class="btn btn-outline-secondary btn-sm no-print" onclick="copyFromPrevious()">
+          <span data-i18n="copyFromCmp">نسخ بنود الشهر المقارَن</span>
+        </button>
+        <button id="btnNewInstallment" class="btn btn-outline-primary btn-sm no-print" onclick="openInstallment()">
+          ➕ <span data-i18n="addInstallment">مصروف مقسّط</span>
+        </button>
+        <button id="btnManageInstallments" class="btn btn-outline-secondary btn-sm no-print" onclick="openInstManager()">
+          ⚙️ <span data-i18n="manageInstallments">إدارة المقسّط</span>
+        </button>
+      </div>
+
+      <hr/>
+
+      <!-- INCOME -->
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center section-head" data-bs-toggle="collapse" data-bs-target="#sec-income">
+          <span class="section-title">💰 <span data-i18n="income">الإيرادات</span></span>
+          <div>
+            <span class="badge badge-soft me-2"><span data-i18n="sum">الإجمالي</span>: <b id="sum-income">0</b></span>
+            <button id="btnAddIncome" class="btn btn-sm btn-outline-primary no-print" onclick="addRow('income')">➕ <span data-i18n="addRow">إضافة بند</span></button>
+          </div>
+        </div>
+        <div id="sec-income" class="collapse show">
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-bordered m-0">
+                <thead class="table-light">
+                  <tr><th style="width:55%" data-i18n="item">البند</th><th style="width:25%" data-i18n="amount">المبلغ</th><th style="width:20%" class="no-print" data-i18n="actions">إجراءات</th></tr>
+                </thead>
+                <tbody id="tbl-income"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- OPERATING -->
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center section-head" data-bs-toggle="collapse" data-bs-target="#sec-operating">
+          <span class="section-title">🛠️ <span data-i18n="operating">مصروفات تشغيل</span></span>
+          <div>
+            <span class="badge badge-soft me-2"><span data-i18n="sum">الإجمالي</span>: <b id="sum-operating">0</b></span>
+            <button id="btnAddOperating" class="btn btn-sm btn-outline-primary no-print" onclick="addRow('operating')">➕ <span data-i18n="addRow">إضافة بند</span></button>
+          </div>
+        </div>
+        <div id="sec-operating" class="collapse show">
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-bordered m-0">
+                <thead class="table-light">
+                  <tr><th style="width:55%" data-i18n="item">البند</th><th style="width:25%" data-i18n="amount">المبلغ</th><th style="width:20%" class="no-print" data-i18n="actions">إجراءات</th></tr>
+                </thead>
+                <tbody id="tbl-operating"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INSTALLMENTS snapshot -->
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center section-head" data-bs-toggle="collapse" data-bs-target="#sec-install">
+          <span class="section-title">📆 <span data-i18n="installments">مصروف مقسّط (هذا الشهر)</span></span>
+          <div>
+            <span class="badge badge-soft me-2"><span data-i18n="sum">الإجمالي</span>: <b id="sum-installments">0</b></span>
+          </div>
+        </div>
+        <div id="sec-install" class="collapse show">
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-bordered m-0">
+                <thead class="table-light">
+                  <tr><th style="width:55%" data-i18n="item">البند</th><th style="width:25%" data-i18n="amount">المبلغ</th><th style="width:20%" data-i18n="section">القسم</th></tr>
+                </thead>
+                <tbody id="tbl-installments"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMIN -->
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center section-head" data-bs-toggle="collapse" data-bs-target="#sec-admin">
+          <span class="section-title">🏢 <span data-i18n="admin">مصروفات إدارية</span></span>
+          <div>
+            <span class="badge badge-soft me-2"><span data-i18n="sum">الإجمالي</span>: <b id="sum-admin">0</b></span>
+            <button id="btnAddAdmin" class="btn btn-sm btn-outline-primary no-print" onclick="addRow('admin')">➕ <span data-i18n="addRow">إضافة بند</span></button>
+          </div>
+        </div>
+        <div id="sec-admin" class="collapse show">
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-bordered m-0">
+                <thead class="table-light">
+                  <tr><th style="width:55%" data-i18n="item">البند</th><th style="width:25%" data-i18n="amount">المبلغ</th><th style="width:20%" class="no-print" data-i18n="actions">إجراءات</th></tr>
+                </thead>
+                <tbody id="tbl-admin"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUMMARY -->
+      <div class="card">
+        <div class="card-header section-title">🧾 <span data-i18n="summary">الملخص</span></div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-3"><div class="p-3 border rounded bg-light"><span data-i18n="totIncome">مجموع الإيرادات</span>: <b id="s-inc">0</b></div></div>
+            <div class="col-md-3"><div class="p-3 border rounded bg-light"><span data-i18n="totExp">مجموع المصروفات</span>: <b id="s-exp">0</b></div></div>
+            <div class="col-md-3"><div class="p-3 border rounded bg-light"><span data-i18n="profit">الربح</span>: <b id="s-profit" class="profit-pos">0</b></div></div>
+            <div class="col-md-3"><div class="p-3 border rounded bg-light"><span data-i18n="margin">نسبة الربح</span>: <b id="s-margin">0%</b></div></div>
+            <div class="col-12"><div class="p-3 border rounded">
+              <span data-i18n="compareWith">المقارنة مع</span> <span id="cmp-month" class="muted">—</span>:
+              <span data-i18n="deltaAmt">فرق المبلغ</span> <b id="cmp-amt">0</b> |
+              <span data-i18n="deltaPct">فرق النسبة</span> <b id="cmp-pct">0%</b>
+            </div></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- Modal: إضافة/تعديل مصروف مقسّط -->
+<div class="modal fade" id="installmentModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title" data-i18n="addInstallment">إضافة مصروف مقسّط</h6>
+        <button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="inst-id">
+        <div class="mb-2"><label class="form-label" data-i18n="itemName">اسم البند</label>
+          <input id="inst-name" class="form-control" placeholder="مثال: صيانة سنوية"></div>
+
+        <div class="mb-2"><label class="form-label" data-i18n="section">القسم</label>
+          <select id="inst-section" class="form-select">
+            <option value="operating" data-i18n="operating">تشغيل</option>
+            <option value="admin" data-i18n="admin">إداري</option>
+          </select>
+        </div>
+
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label" data-i18n="totalAmount">إجمالي المبلغ</label>
+            <input id="inst-total" type="number" class="form-control" value="0"></div>
+          <div class="col-6"><label class="form-label" data-i18n="monthsCount">عدد الأشهر</label>
+            <input id="inst-months" type="number" class="form-control" value="3" min="1"></div>
+        </div>
+
+        <div class="row g-2 mt-1">
+          <div class="col-6"><label class="form-label" data-i18n="startMonth">شهر البداية</label>
+            <input id="inst-start" type="month" class="form-control"></div>
+          <div class="col-6"><label class="form-label" data-i18n="scope">النطاق</label>
+            <select id="inst-scope" class="form-select">
+              <option value="single" data-i18n="thisBranch">هذا الفرع فقط</option>
+              <option value="weighted" data-i18n="weighted">توزيع على الفروع حسب الأوزان</option>
+            </select>
+          </div>
+        </div>
+        <small class="text-muted d-block mt-2" data-i18n="instHint">
+          سيُحمَّل تلقائيًا كل شهر: (الإجمالي ÷ عدد الأشهر). إذا اخترت “توزيع على الفروع” فسيُقسَّم المبلغ الشهري حسب أوزان التوزيع للفروع المفعّلة.
+        </small>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="cancel">إلغاء</button>
+        <button class="btn btn-primary" onclick="saveInstallment()" data-i18n="save">حفظ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: إدارة جميع المقسّط -->
+<div class="modal fade" id="instManagerModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title" data-i18n="manageInstallments">إدارة المقسّط</h6>
+        <button class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="table-responsive">
+          <table class="table table-bordered">
+            <thead class="table-light">
+              <tr>
+                <th data-i18n="item">البند</th>
+                <th data-i18n="section">القسم</th>
+                <th data-i18n="totalAmount">الإجمالي</th>
+                <th data-i18n="monthsCount">الأشهر</th>
+                <th data-i18n="startMonth">البداية</th>
+                <th data-i18n="actions">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-inst-mgr"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="close">إغلاق</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: إدارة المستخدمين (Admin) -->
+<div class="modal fade" id="usersModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title" data-i18n="users">المستخدمون</h6>
+        <button class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label" data-i18n="username">اسم المستخدم</label>
+          <input id="u-name" class="form-control">
+        </div>
+        <div class="mb-2">
+          <label class="form-label" data-i18n="password">كلمة المرور</label>
+          <input id="u-pass" type="text" class="form-control">
+        </div>
+        <div class="mb-2">
+          <label class="form-label" data-i18n="role">الدور</label>
+          <select id="u-role" class="form-select">
+            <option value="viewer">Viewer</option>
+            <option value="editor">Editor</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <input type="hidden" id="u-id">
+        <div class="d-flex gap-2">
+          <button class="btn btn-primary" onclick="saveUser()" data-i18n="save">حفظ</button>
+          <button class="btn btn-secondary" onclick="resetUserForm()" data-i18n="newUser">جديد</button>
+        </div>
+        <hr>
+        <div id="usersList" class="vstack gap-2"></div>
+        <small class="text-muted d-block mt-2" data-i18n="usersNote">
+          ملاحظة: المستخدم الافتراضي admin لا يمكن حذفه.
+        </small>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Core libs -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Firebase + Firestore -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+  import { getFirestore } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+  // 🔧 ضع إعدادات مشروعك (هي نفسها التي أعطيتني إياها)
+  const firebaseConfig = {
+    apiKey: "AIzaSyDgtifnouF0AGzBxWls3wPk7gikSqOBFm0",
+    authDomain: "monthly-prfits.firebaseapp.com",
+    projectId: "monthly-prfits",
+    storageBucket: "monthly-prfits.firebasestorage.app",
+    messagingSenderId: "896730662080",
+    appId: "1:896730662080:web:a41850c6736ab6b02d1925",
+    measurementId: "G-KX9KFLVV3J"
+  };
+  const app = initializeApp(firebaseConfig);
+  window._db = getFirestore(app);
+</script>
+
+<script>
+/* ======================== i18n ======================== */
+const I18N = {
+  ar: {
+    import:"استيراد بيانات", exportJson:"تصدير JSON", exportExcel:"تصدير Excel", saveCloud:"حفظ سحابي", loadCloud:"تحميل سحابي", print:"طباعة",
+    branches:"الفروع", adminSettings:"إعدادات التوزيع الإداري", adminHint:"* الفروع المفعَّلة فقط تتحمل المصروف الإداري المقسّط عند اختيار “توزيع على الفروع”.",
+    wipe:"مسح كل البيانات المحلية", confirmWipe:"مسح كل البيانات المحلية؟",
+    reportMonth:"شهر التقرير", compareWith:"مقارنة مع", copyFromCmp:"نسخ بنود الشهر المقارَن", addInstallment:"مصروف مقسّط", manageInstallments:"إدارة المقسّط", close:"إغلاق",
+    income:"الإيرادات", operating:"مصروفات تشغيل", installments:"مصروف مقسّط (هذا الشهر)", admin:"مصروفات إدارية",
+    sum:"الإجمالي", addRow:"إضافة بند", item:"البند", amount:"المبلغ", actions:"إجراءات", section:"القسم",
+    summary:"الملخص", totIncome:"مجموع الإيرادات", totExp:"مجموع المصروفات", profit:"الربح", margin:"نسبة الربح",
+    deltaAmt:"فرق المبلغ", deltaPct:"فرق النسبة",
+    itemName:"اسم البند", totalAmount:"إجمالي المبلغ", monthsCount:"عدد الأشهر", startMonth:"شهر البداية", scope:"النطاق",
+    thisBranch:"هذا الفرع فقط", weighted:"توزيع على الفروع حسب الأوزان", instHint:"سيُحمَّل تلقائيًا كل شهر: (الإجمالي ÷ عدد الأشهر). إذا اخترت “توزيع على الفروع” فسيُقسَّم المبلغ الشهري حسب أوزان التوزيع للفروع المفعّلة.",
+    cancel:"إلغاء", save:"حفظ",
+    users:"المستخدمون", username:"اسم المستخدم", password:"كلمة المرور", role:"الدور", newUser:"جديد",
+    usersNote:"ملاحظة: المستخدم الافتراضي admin لا يمكن حذفه."
+  },
+  en: {
+    import:"Import JSON", exportJson:"Export JSON", exportExcel:"Export Excel", saveCloud:"Save to Cloud", loadCloud:"Load from Cloud", print:"Print",
+    branches:"Branches", adminSettings:"Admin allocation", adminHint:"* Only enabled branches share admin installments when 'weighted' is selected.",
+    wipe:"Clear local data", confirmWipe:"Clear all local data?",
+    reportMonth:"Report month", compareWith:"Compare with", copyFromCmp:"Copy compared month items", addInstallment:"Installment expense", manageInstallments:"Manage installments", close:"Close",
+    income:"Income", operating:"Operating expenses", installments:"Installments (this month)", admin:"Administrative expenses",
+    sum:"Total", addRow:"Add row", item:"Item", amount:"Amount", actions:"Actions", section:"Section",
+    summary:"Summary", totIncome:"Total income", totExp:"Total expenses", profit:"Profit", margin:"Profit margin",
+    deltaAmt:"Amount delta", deltaPct:"Margin delta",
+    itemName:"Item name", totalAmount:"Total amount", monthsCount:"Months", startMonth:"Start month", scope:"Scope",
+    thisBranch:"This branch only", weighted:"Weighted across branches", instHint:"A monthly share (total ÷ months) is auto-applied. If 'weighted', the share is split by branch weights.",
+    cancel:"Cancel", save:"Save",
+    users:"Users", username:"Username", password:"Password", role:"Role", newUser:"New",
+    usersNote:"Note: default 'admin' user cannot be deleted."
+  }
+};
+let LANG='ar';
+function t(key){ return (I18N[LANG]||{})[key] || key; }
+function applyLang(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const k = el.getAttribute('data-i18n'); el.textContent = t(k);
+  });
+  document.documentElement.setAttribute('lang', LANG);
+  document.documentElement.setAttribute('dir', LANG==='ar'?'rtl':'ltr');
+  renderPage();
+}
+document.getElementById('btn-ar').onclick=()=>{ LANG='ar'; swapLangBtns(); applyLang(); };
+document.getElementById('btn-en').onclick=()=>{ LANG='en'; swapLangBtns(); applyLang(); };
+function swapLangBtns(){
+  document.getElementById('btn-ar').className = LANG==='ar'?'btn btn-light btn-sm':'btn btn-outline-light btn-sm';
+  document.getElementById('btn-en').className = LANG==='en'?'btn btn-light btn-sm':'btn btn-outline-light btn-sm';
+}
+
+/* ======================== ثابت/بيانات ======================== */
+const STORE_KEY = "profit_manager_v4";
+const SESSION_KEY = "profit_session_v1";
+function cid(){ return Math.random().toString(36).slice(2,10); }
+
+const FIXED_BRANCHES = [
+  {id: cid(), name:"الحفلات", active:true,  weight:1, includeAdmin:true},
+  {id: cid(), name:"الكيك",   active:true,  weight:1, includeAdmin:true},
+  {id: cid(), name:"كلاسيك",  active:true,  weight:1, includeAdmin:true},
+  {id: cid(), name:"موند",    active:true,  weight:1, includeAdmin:true},
+  {id: cid(), name:"هورن",    active:true,  weight:1, includeAdmin:true},
+  {id: cid(), name:"هجر فود", active:true,  weight:1, includeAdmin:false}
+];
+const DEFAULT = {
+  branches: FIXED_BRANCHES,
+  months: {},          // {"YYYY-MM": {branchId: {income:[], operating:[], admin:[]}}}
+  installments: [],    // {id,name,total,months,start,section,scope,branchId}
+  users: [             // إدارة المستخدمين
+    {id: cid(), username:"admin", password:"admin442", role:"admin", builtin:true}
+  ],
+  cloudUpdatedAt: null
+};
+
+function loadLocal(){ try{return JSON.parse(localStorage.getItem(STORE_KEY)) || structuredClone(DEFAULT);}catch{ return structuredClone(DEFAULT); } }
+function saveLocal(){ localStorage.setItem(STORE_KEY, JSON.stringify(DB)); bumpCloudSave(); }
+let DB = loadLocal();
+
+let currentBranchId = DB.branches[0]?.id || null;
+let currentMonth = new Date().toISOString().slice(0,7);
+let compareMonth = "";
+
+/* ======================== الجلسة/الصلاحيات ======================== */
+let session = null; // {username, role}
+function isAdmin(){ return session?.role === 'admin'; }
+function canEdit(){ return session && (session.role==='admin' || session.role==='editor'); }
+function who(){ return session ? `${session.username} (${session.role})` : '—'; }
+
+function doLogin(u,p){
+  const user = DB.users.find(x=>x.username===u && x.password===p);
+  if(!user) return false;
+  session = {username:user.username, role:user.role};
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  document.getElementById('loginWrap').style.display='none';
+  document.getElementById('whoami').textContent = who();
+  document.getElementById('btnUsers').classList.toggle('d-none', !isAdmin());
+  guardUI();
+  // تحميل تلقائي من السحابة عند الدخول
+  loadFromCloudAtStart();
+  return true;
+}
+function logout(){
+  localStorage.removeItem(SESSION_KEY);
+  session=null;
+  document.getElementById('whoami').textContent='';
+  document.getElementById('loginWrap').style.display='flex';
+  guardUI();
+}
+document.getElementById('btnLogout').onclick = logout;
+document.getElementById('btnLogin').onclick = ()=>{
+  const u=document.getElementById('loginUser').value.trim();
+  const p=document.getElementById('loginPass').value;
+  if(!doLogin(u,p)){ alert('❌ بيانات الدخول غير صحيحة'); }
+};
+
+(function restoreSession(){
+  try{
+    const raw = localStorage.getItem(SESSION_KEY);
+    if(raw){ session = JSON.parse(raw); document.getElementById('loginWrap').style.display='none'; }
+  }catch{}
+})();
+
+/* إخفاء/تعطيل حسب الصلاحيات */
+function guardUI(){
+  const editableBtns = [
+    'btnAddIncome','btnAddOperating','btnAddAdmin','btnNewInstallment','btnManageInstallments',
+    'btnCopyFromCmp','btnSaveCloud','btnImport'
+  ];
+  editableBtns.forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    if(canEdit()){ el.classList.remove('disabled-overlay'); el.disabled=false; }
+    else { el.classList.add('disabled-overlay'); el.disabled=true; }
+  });
+  // زر إدارة المستخدمين
+  document.getElementById('btnUsers').classList.toggle('d-none', !isAdmin());
+  document.getElementById('whoami').textContent = who();
+}
+
+/* ======================== Firestore: حفظ/تحميل ======================== */
+let _saveTimer = null;
+function debounceSaveCloud(){ clearTimeout(_saveTimer); _saveTimer = setTimeout(()=> saveToCloud(DB), 1200); }
+function bumpCloudSave(){ if(canEdit()) debounceSaveCloud(); }
+
+async function saveToCloud(data){
+  if(!window._db){ return; }
+  if(!canEdit()){ return; } // المشاهد لا يرسل للسحابة
+  try{
+    const payload = { content: JSON.stringify(data), updatedAt: new Date().toISOString() };
+    const { setDoc, doc } = await import("https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js");
+    await setDoc(doc(window._db, "profits", "main"), payload);
+    DB.cloudUpdatedAt = payload.updatedAt;
+    localStorage.setItem(STORE_KEY, JSON.stringify(DB));
+    console.log('✅ Cloud saved');
+  }catch(e){
+    console.error('Cloud save error', e);
+  }
+}
+
+async function loadFromCloudAtStart(){
+  if(!window._db) return;
+  try{
+    const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js");
+    const snap = await getDoc(doc(window._db, "profits", "main"));
+    if(snap.exists()){
+      const sd = snap.data();
+      const cloud = JSON.parse(sd.content);
+      // إن كان السحاب أحدث من المحلي نأخذ السحاب
+      const localT = new Date(DB.cloudUpdatedAt||0).getTime();
+      const cloudT = new Date(sd.updatedAt||0).getTime();
+      if(cloudT > localT){
+        DB = cloud; // استبدال كامل
+        localStorage.setItem(STORE_KEY, JSON.stringify(DB));
+        console.log('☁️ Loaded newer cloud data');
+        renderBranches(); renderPage();
+      }
+    }
+  }catch(e){ console.warn('Cloud load error', e); }
+}
+async function loadFromCloudBtn(){
+  if(!window._db){ alert('❌ لا يوجد اتصال بالسحابة'); return; }
+  try{
+    const { getDoc, doc } = await import("https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js");
+    const snap = await getDoc(doc(window._db, "profits", "main"));
+    if(snap.exists()){
+      const raw = snap.data().content;
+      DB = JSON.parse(raw);
+      localStorage.setItem(STORE_KEY, JSON.stringify(DB));
+      renderBranches(); renderPage();
+      alert('✅ تم التحميل من السحابة');
+    }else{
+      alert('⚠️ لا توجد بيانات سحابية بعد');
+    }
+  }catch(e){
+    console.error(e); alert('❌ خطأ في تحميل البيانات');
+  }
+}
+
+/* ======================== واجهة الفروع والإعدادات ======================== */
+function renderBranches(){
+  const list = document.getElementById('branchList');
+  list.innerHTML = "";
+  DB.branches.forEach(b=>{
+    const a = document.createElement('a');
+    a.href="#"; a.className="list-group-item d-flex align-items-center justify-content-between";
+    if(b.id===currentBranchId) a.classList.add('active');
+    a.innerHTML = `<span>${b.name}</span>`;
+    a.onclick=(e)=>{e.preventDefault(); currentBranchId=b.id; renderPage();};
+    list.appendChild(a);
+  });
+
+  // إعدادات الأوزان والإداري
+  const box = document.getElementById('adminSettings'); box.innerHTML="";
+  DB.branches.forEach(b=>{
+    const row = document.createElement('div');
+    row.className="d-flex align-items-center gap-2";
+    row.innerHTML = `
+      <input type="checkbox" class="form-check-input" ${b.includeAdmin?'checked':''}
+        onchange="bToggleAdmin('${b.id}',this.checked)" ${canEdit()?'':'disabled'}>
+      <span class="me-1" style="width:120px">${b.name}</span>
+      <input type="number" class="form-control form-control-sm" style="width:90px"
+        value="${b.weight}" min="0" step="0.1" onchange="bSetWeight('${b.id}',this.value)" ${canEdit()?'':'disabled'}>
+      <span class="muted">${LANG==='ar'?'وزن':'Weight'}</span>`;
+    box.appendChild(row);
+  });
+}
+function bToggleAdmin(id, val){ const b=DB.branches.find(x=>x.id===id); if(b){b.includeAdmin=!!val; saveLocal();} }
+function bSetWeight(id, v){ const b=DB.branches.find(x=>x.id===id); if(b){b.weight=parseFloat(v)||0; saveLocal();} }
+
+/* ======================== صفحة الفرع ======================== */
+function ensureMonthBranch(mm, bid){
+  DB.months[mm] = DB.months[mm] || {};
+  DB.months[mm][bid] = DB.months[mm][bid] || {income:[], operating:[], admin:[]};
+  return DB.months[mm][bid];
+}
+function renderPage(){
+  if(!currentBranchId){ document.getElementById('branchTitle').textContent="—"; return; }
+  document.getElementById('branchTitle').textContent = DB.branches.find(b=>b.id===currentBranchId)?.name || "—";
+  document.getElementById('monthCurrent').value = currentMonth;
+  document.getElementById('monthCompare').value = compareMonth;
+
+  renderBranches();
+  renderTable('income'); renderTable('operating'); renderTable('admin');
+  renderInstallmentsSnapshot();
+  updateSummary();
+  guardUI();
+}
+document.getElementById('monthCurrent').addEventListener('change', (e)=>{ currentMonth=e.target.value; renderPage(); });
+document.getElementById('monthCompare').addEventListener('change', (e)=>{ compareMonth=e.target.value; updateSummary(); });
+
+function addRow(section){
+  if(!canEdit()) return;
+  const rows = ensureMonthBranch(currentMonth, currentBranchId)[section];
+  rows.push({id:cid(), name: LANG==='ar'?'بند جديد':'New item', amount:0});
+  saveLocal(); renderTable(section); updateSummary();
+}
+function delRow(section, id){
+  if(!canEdit()) return;
+  const arr = ensureMonthBranch(currentMonth, currentBranchId)[section];
+  const i = arr.findIndex(r=>r.id===id);
+  if(i>-1) arr.splice(i,1);
+  saveLocal(); renderTable(section); updateSummary();
+}
+function editCell(section, id, field, val){
+  if(!canEdit()) return;
+  const rows = ensureMonthBranch(currentMonth, currentBranchId)[section];
+  const r = rows.find(x=>x.id===id);
+  if(!r) return;
+  r[field] = field==='amount' ? (parseFloat(val)||0) : val;
+  saveLocal(); updateSummary();
+}
+function renderTable(section){
+  const tbody = document.getElementById('tbl-'+section); tbody.innerHTML="";
+  const rows = ensureMonthBranch(currentMonth, currentBranchId)[section];
+
+  // البنود المقسطة لهذا الشهر (ضمن القسم) تُحتسب تلقائيًا
+  const autoRows = calcInstallmentsFor(currentMonth, currentBranchId, section)
+    .map(x=>({id: 'auto_'+cid(), name:`(${LANG==='ar'?'مقسّط':'Install.'}) ${x.name}`, amount:x.amount, _auto:true}));
+
+  const all = rows.concat(autoRows);
+  all.forEach((r)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r._auto ? r.name : `<input type="text" value="${r.name}" ${canEdit()?'':'disabled'} oninput="editCell('${section}','${r.id}','name',this.value)">`}</td>
+      <td>${r._auto ? numberFmt(r.amount) : `<input type="number" value="${r.amount}" ${canEdit()?'':'disabled'} oninput="editCell('${section}','${r.id}','amount',this.value)">`}</td>
+      <td class="no-print">${r._auto ? '<span class="text-muted">—</span>' : (canEdit()? `<button class="btn btn-sm btn-outline-danger" onclick="if(confirm('Delete?'))delRow('${section}','${r.id}')">${LANG==='ar'?'حذف':'Delete'}</button>`:'—')}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  const sums = computeTotals(currentMonth, currentBranchId);
+  document.getElementById('sum-'+section).textContent =
+    section==='income' ? numberFmt(sums.inc) :
+    section==='operating' ? numberFmt(sums.op) :
+    numberFmt(sums.ad);
+}
+
+/* ======= لقطة المصروف المقسّط + إدارة ======= */
+const instModal = new bootstrap.Modal('#installmentModal');
+const instMgrModal = new bootstrap.Modal('#instManagerModal');
+
+function openInstallment(){
+  if(!canEdit()) return;
+  document.getElementById('inst-id').value="";
+  document.getElementById('inst-name').value="";
+  document.getElementById('inst-total').value=0;
+  document.getElementById('inst-months').value=3;
+  document.getElementById('inst-section').value='operating';
+  document.getElementById('inst-start').value = currentMonth;
+  document.getElementById('inst-scope').value='single';
+  instModal.show();
+}
+function saveInstallment(){
+  if(!canEdit()) return;
+  const id = document.getElementById('inst-id').value || cid();
+  const name = document.getElementById('inst-name').value.trim();
+  const total = parseFloat(document.getElementById('inst-total').value)||0;
+  const months = Math.max(1, parseInt(document.getElementById('inst-months').value)||1);
+  const start = document.getElementById('inst-start').value;
+  const section = document.getElementById('inst-section').value;
+  const scope = document.getElementById('inst-scope').value;
+  if(!name || !start){ alert(LANG==='ar'?'أكمل الحقول.':'Complete required fields.'); return; }
+  const idx = DB.installments.findIndex(x=>x.id===id);
+  const payload = {id, name, total, months, start, section, scope, branchId: currentBranchId, created: new Date().toISOString()};
+  if(idx>-1) DB.installments[idx]=payload; else DB.installments.push(payload);
+  saveLocal(); instModal.hide(); renderTable(section); renderInstallmentsSnapshot(); updateSummary(); if(document.getElementById('tbl-inst-mgr')) fillInstMgr();
+}
+function openInstManager(){
+  if(!canEdit()) return;
+  fillInstMgr(); instMgrModal.show();
+}
+function fillInstMgr(){
+  const tb = document.getElementById('tbl-inst-mgr'); tb.innerHTML='';
+  DB.installments.forEach(ins=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${ins.name}</td>
+      <td>${ins.section==='operating'?(LANG==='ar'?'تشغيل':'Operating'):(LANG==='ar'?'إداري':'Admin')}</td>
+      <td>${numberFmt(ins.total)}</td>
+      <td>${ins.months}</td>
+      <td>${ins.start}</td>
+      <td>
+        ${canEdit()?`<button class="btn btn-sm btn-primary me-1" onclick="editInst('${ins.id}')">${LANG==='ar'?'تعديل':'Edit'}</button>
+        <button class="btn btn-sm btn-danger" onclick="delInst('${ins.id}')">${LANG==='ar'?'حذف':'Delete'}</button>`:'—'}
+      </td>`;
+    tb.appendChild(tr);
+  });
+}
+function editInst(id){
+  const ins = DB.installments.find(x=>x.id===id); if(!ins) return;
+  document.getElementById('inst-id').value = ins.id;
+  document.getElementById('inst-name').value = ins.name;
+  document.getElementById('inst-total').value = ins.total;
+  document.getElementById('inst-months').value = ins.months;
+  document.getElementById('inst-section').value = ins.section;
+  document.getElementById('inst-start').value = ins.start;
+  document.getElementById('inst-scope').value = ins.scope;
+  instModal.show();
+}
+function delInst(id){
+  if(!canEdit()) return;
+  if(!confirm(LANG==='ar'?'حذف البند المقسّط؟':'Delete installment?')) return;
+  const i = DB.installments.findIndex(x=>x.id===id);
+  if(i>-1){ const sec = DB.installments[i].section; DB.installments.splice(i,1); saveLocal(); renderTable(sec); renderInstallmentsSnapshot(); fillInstMgr(); }
+}
+
+function renderInstallmentsSnapshot(){
+  const tbody = document.getElementById('tbl-installments'); tbody.innerHTML="";
+  const sections = ['operating','admin'];
+  let total=0;
+  sections.forEach(sec=>{
+    const rows = calcInstallmentsFor(currentMonth, currentBranchId, sec);
+    rows.forEach(r=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML = `<td>${r.name}</td><td>${numberFmt(r.amount)}</td><td>${sec==='operating'?(LANG==='ar'?'تشغيل':'Operating'):(LANG==='ar'?'إداري':'Admin')}</td>`;
+      tbody.appendChild(tr);
+      total += (+r.amount||0);
+    });
+  });
+  document.getElementById('sum-installments').textContent = numberFmt(total);
+}
+
+function monthAdd(ym, k){
+  const [y,m]=ym.split('-').map(Number);
+  const d=new Date(y, m-1+k, 1);
+  return d.toISOString().slice(0,7);
+}
+function calcInstallmentsFor(ym, bid, section){
+  const perMonth = [];
+  DB.installments.forEach(ins=>{
+    if(ins.section!==section) return;
+    const end = monthAdd(ins.start, ins.months-1);
+    if(ym < ins.start || ym > end) return;
+    const mAmount = ins.total / ins.months;
+    if(ins.scope==='single'){
+      if(ins.branchId===bid) perMonth.push({name:ins.name, amount:mAmount});
+    }else{ // weighted
+      const eligible = DB.branches.filter(b=>{
+        if(section==='admin') return b.includeAdmin;
+        return true;
+      });
+      const weights = eligible.reduce((s,b)=> s+(+b.weight||0), 0) || 1;
+      const b = DB.branches.find(x=>x.id===bid);
+      const w = eligible.find(x=>x.id===bid) ? ((+b.weight||0)/weights) : 0;
+      perMonth.push({name:ins.name, amount: mAmount * w});
+    }
+  });
+  return perMonth;
+}
+
+/* ======================== الملخص والمقارنة ======================== */
+function sumRows(rows){ return rows.reduce((s,r)=> s + (+r.amount||0), 0); }
+function numberFmt(n){ return (+n||0).toLocaleString(LANG==='ar'?'ar-EG':'en-US', {maximumFractionDigits:2}); }
+function computeTotals(month, bid){
+  const incRows = ensureMonthBranch(month, bid)['income'];
+  const opRows  = ensureMonthBranch(month, bid)['operating']
+                    .concat(calcInstallmentsFor(month, bid, 'operating'));
+  const adRows  = ensureMonthBranch(month, bid)['admin']
+                    .concat(calcInstallmentsFor(month, bid, 'admin'));
+
+  const inc = sumRows(incRows);
+  const op  = sumRows(opRows);
+  const ad  = sumRows(adRows);
+  const exp = op + ad;
+  const profit = inc - exp;
+  const margin = inc>0 ? (profit/inc*100) : 0;
+  return {inc, op, ad, exp, profit, margin};
+}
+function updateSummary(){
+  const t = computeTotals(currentMonth, currentBranchId);
+  document.getElementById('s-inc').textContent = numberFmt(t.inc);
+  document.getElementById('s-exp').textContent = numberFmt(t.exp);
+  const p = document.getElementById('s-profit');
+  p.textContent = numberFmt(t.profit);
+  p.className = t.profit>=0 ? 'profit-pos' : 'profit-neg';
+  document.getElementById('s-margin').textContent = (t.margin||0).toFixed(2)+'%';
+
+  // مقارنة
+  let deltaAmt=0, deltaPct=0;
+  if(compareMonth){
+    const c = computeTotals(compareMonth, currentBranchId);
+    deltaAmt = t.profit - c.profit;
+    const pctA = t.inc>0 ? (t.profit/t.inc*100) : 0;
+    const pctB = c.inc>0 ? (c.profit/c.inc*100) : 0;
+    deltaPct = pctA - pctB;
+    document.getElementById('cmp-month').textContent = compareMonth;
+  }else{
+    document.getElementById('cmp-month').textContent = '—';
+  }
+  document.getElementById('cmp-amt').textContent = numberFmt(deltaAmt);
+  document.getElementById('cmp-pct').textContent = (deltaPct||0).toFixed(2)+'%';
+
+  // مجاميع رؤوس الأقسام
+  document.getElementById('sum-income').textContent   = numberFmt(t.inc);
+  document.getElementById('sum-operating').textContent= numberFmt(t.op);
+  document.getElementById('sum-admin').textContent    = numberFmt(t.ad);
+
+  saveLocal();
+}
+
+/* ======================== نسخ من شهر المقارنة ======================== */
+function copyFromPrevious(){
+  if(!canEdit()) return;
+  if(!compareMonth){ alert(LANG==='ar'?'اختر شهر المقارنة أولاً.':'Pick the compare month first.'); return; }
+  if(!confirm(LANG==='ar'?'نسخ البنود من شهر المقارنة إلى شهر التقرير؟ (لن يشمل المقسّط)':'Copy items from compared month to report month? (installments excluded)')) return;
+  const src = ensureMonthBranch(compareMonth, currentBranchId);
+  const dst = ensureMonthBranch(currentMonth, currentBranchId);
+  ['income','operating','admin'].forEach(sec=>{
+    dst[sec] = (src[sec]||[]).map(r=>({id:cid(), name:r.name, amount:+r.amount||0}));
+  });
+  saveLocal(); renderTable('income'); renderTable('operating'); renderTable('admin'); updateSummary();
+}
+
+/* ======================== استيراد/تصدير ======================== */
+function exportJSON(){
+  const blob = new Blob([JSON.stringify(DB, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download='profit-data.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+document.getElementById('importFile').addEventListener('change', (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => { try{ DB = JSON.parse(r.result); localStorage.setItem(STORE_KEY, JSON.stringify(DB)); location.reload(); } catch{ alert(LANG==='ar'?'ملف غير صالح':'Invalid file'); } };
+  r.readAsText(f);
+});
+function exportExcel(){
+  const wb = XLSX.utils.book_new();
+  const months = Object.keys(DB.months).sort();
+  if(months.length===0){ alert(LANG==='ar'?'لا توجد بيانات.':'No data.'); return; }
+  DB.branches.forEach(b=>{
+    months.forEach(mm=>{
+      if(!DB.months[mm][b.id]) return;
+      const t = computeTotals(mm, b.id);
+      const rows = [
+        [LANG==='ar'?'الفرع':'Branch', b.name], [LANG==='ar'?'الشهر':'Month', mm], [],
+        [LANG==='ar'?'الإيرادات':'Income'], [LANG==='ar'?'البند':'Item',LANG==='ar'?'المبلغ':'Amount']
+      ];
+      (DB.months[mm][b.id].income || []).forEach(r=> rows.push([r.name, r.amount]));
+      rows.push(["", ""]); rows.push([LANG==='ar'?'الإجمالي':'Total', t.inc]); rows.push([]);
+      rows.push([LANG==='ar'?'مصروفات تشغيل':'Operating'], [LANG==='ar'?'البند':'Item',LANG==='ar'?'المبلغ':'Amount']);
+      (DB.months[mm][b.id].operating || []).forEach(r=> rows.push([r.name, r.amount]));
+      rows.push([LANG==='ar'?'يشمل المقسّط':'Includes installments',""]);
+      rows.push([LANG==='ar'?'الإجمالي':'Total', t.op]); rows.push([]);
+      rows.push([LANG==='ar'?'مصروفات إدارية':'Administrative'], [LANG==='ar'?'البند':'Item',LANG==='ar'?'المبلغ':'Amount']);
+      (DB.months[mm][b.id].admin || []).forEach(r=> rows.push([r.name, r.amount]));
+      rows.push([LANG==='ar'?'يشمل المقسّط':'Includes installments',""]);
+      rows.push([LANG==='ar'?'الإجمالي':'Total', t.ad]); rows.push([]);
+      rows.push([LANG==='ar'?'صافي الربح':'Net profit', t.profit]);
+      rows.push([LANG==='ar'?'نسبة الربح':'Profit margin', (t.margin||0).toFixed(2)+"%"]);
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, `${b.name}-${mm}`.slice(0,31));
+    });
+  });
+  XLSX.writeFile(wb, LANG==='ar'?"تقارير-الأرباح.xlsx":"Profit-Reports.xlsx");
+}
+
+/* ======================== إدارة المستخدمين (Admin) ======================== */
+const usersModal = new bootstrap.Modal('#usersModal');
+document.getElementById('btnUsers').onclick = ()=>{ if(!isAdmin()) return; resetUserForm(); renderUsers(); usersModal.show(); };
+function resetUserForm(){ document.getElementById('u-id').value=""; document.getElementById('u-name').value=""; document.getElementById('u-pass').value=""; document.getElementById('u-role').value="viewer"; }
+function saveUser(){
+  if(!isAdmin()) return;
+  const id = document.getElementById('u-id').value || cid();
+  const username = document.getElementById('u-name').value.trim();
+  const password = document.getElementById('u-pass').value;
+  const role = document.getElementById('u-role').value;
+  if(!username || !password){ alert(LANG==='ar'?'أدخل الاسم وكلمة المرور':'Enter username & password'); return; }
+  const exist = DB.users.find(x=>x.username===username && x.id!==id);
+  if(exist){ alert(LANG==='ar'?'اسم المستخدم مستخدم مسبقاً':'Username already exists'); return; }
+  const ix = DB.users.findIndex(x=>x.id===id);
+  const rec = {id, username, password, role, builtin:false};
+  if(ix>-1) DB.users[ix]=rec; else DB.users.push(rec);
+  saveLocal(); renderUsers(); alert(LANG==='ar'?'تم الحفظ':'Saved');
+}
+function renderUsers(){
+  const box = document.getElementById('usersList'); box.innerHTML='';
+  DB.users.forEach(u=>{
+    const row = document.createElement('div');
+    row.className="p-2 border rounded d-flex align-items-center justify-content-between";
+    row.innerHTML = `
+      <div>
+        <b>${u.username}</b> — <span class="text-muted">${u.role}</span> ${u.builtin? '<span class="badge text-bg-warning ms-1">built-in</span>':''}
+      </div>
+      <div>
+        <button class="btn btn-sm btn-primary me-1" onclick="editUser('${u.id}')">${LANG==='ar'?'تعديل':'Edit'}</button>
+        ${u.builtin ? '' : `<button class="btn btn-sm btn-danger" onclick="delUser('${u.id}')">${LANG==='ar'?'حذف':'Delete'}</button>`}
+      </div>`;
+    box.appendChild(row);
+  });
+}
+function editUser(id){
+  const u = DB.users.find(x=>x.id===id); if(!u) return;
+  document.getElementById('u-id').value = u.id;
+  document.getElementById('u-name').value = u.username;
+  document.getElementById('u-pass').value = u.password;
+  document.getElementById('u-role').value = u.role;
+}
+function delUser(id){
+  if(!isAdmin()) return;
+  const u = DB.users.find(x=>x.id===id); if(!u || u.builtin) return;
+  if(!confirm(LANG==='ar'?'حذف المستخدم؟':'Delete user?')) return;
+  DB.users = DB.users.filter(x=>x.id!==id);
+  saveLocal(); renderUsers();
+}
+
+/* ======================== تهيئة ======================== */
+document.getElementById('monthCurrent').addEventListener('change', ()=> saveLocal());
+document.getElementById('monthCompare').addEventListener('change', ()=> saveLocal());
+
+(function init(){
+  LANG='ar'; swapLangBtns(); applyLang();
+  currentMonth = new Date().toISOString().slice(0,7);
+  compareMonth = "";
+  renderBranches();
+  renderPage();
+  guardUI();
+  // إن كانت هناك جلسة محفوظة وحقل الدخول مخفي فسنحاول تحميل السحاب تلقائياً
+  if(session){ loadFromCloudAtStart(); }
+})();
+</script>
+</body>
+</html>
