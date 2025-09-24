@@ -1,133 +1,395 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>برنامج الأرباح الشهري — تسجيل ودخول آمن</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>برنامج الأرباح الشهري</title>
 
-<!-- Bootstrap RTL -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet"/>
-
-<!-- SheetJS (إن كنت تصدّر Excel/JSON لاحقاً) -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
 <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
 <style>
-:root{ --brand:#0d47a1; --muted:#6c757d; }
-body{ background:#fff; color:#222; }
-.navbar{ background:var(--brand); }
-.navbar .navbar-brand,.navbar .btn,.navbar .nav-link{ color:#fff; }
-.navbar .btn.btn-light{ color:var(--brand); }
-.card{ box-shadow:0 2px 10px rgba(0,0,0,.05); border:1px solid #eef1f4; }
-.badge-soft{background:#eef2ff;color:#2b3a67;border:1px solid #dfe7ff}
-.pill{padding:.35rem .6rem;border-radius:1rem;border:1px solid #e5e8ee;background:#fff}
-.muted{ color:var(--muted); }
-
-#auth-view{ max-width:420px; margin:7vh auto; }
-.auth-logo{ font-size:2rem; color:var(--brand); }
-.auth-hint{ font-size:.9rem; color:#6b7280; }
-.link{ cursor:pointer; color:#0d6efd; text-decoration:underline; }
-
-@media (max-width: 576px){
-  .navbar-brand{ font-size:1rem; }
-}
+  :root{ --brand:#0d47a1; --muted:#6c757d; }
+  html,body{height:100%}
+  body{background:#fff;color:#222}
+  .navbar{background:var(--brand)}
+  .navbar .navbar-brand,.navbar .nav-link,.navbar .btn{color:#fff}
+  .navbar .btn.btn-light{color:var(--brand)}
+  .sidebar{min-height:100vh;background:#f8f9fb;border-left:1px solid #e7ebf0}
+  .sidebar .list-group-item{border:none;background:transparent}
+  .sidebar .list-group-item.active{background:var(--brand);color:#fff;border-radius:.5rem}
+  .card{box-shadow:0 2px 10px rgba(0,0,0,.05);border:1px solid #eef1f4}
+  .table td input[type="text"], .table td input[type="number"]{width:100%;border:none;background:transparent}
+  .table td input:focus{outline:none;border-bottom:1px solid #0d6efd}
+  .muted{color:var(--muted)}
+  .profit-pos{color:#198754;font-weight:700}
+  .profit-neg{color:#dc3545;font-weight:700}
+  .section-title{font-weight:700}
+  .section-head{cursor:pointer;user-select:none}
+  .badge-soft{background:#eef2ff;color:#2b3a67;border:1px solid #dfe7ff}
+  .pill{padding:.2rem .5rem;border-radius:1rem;border:1px solid #e5e8ee;background:#fff}
+  .login-wrap{min-height:100dvh;display:flex;align-items:center;justify-content:center;background:#f5f7fb}
+  .login-card{width:100%;max-width:420px;border:1px solid #eef1f4;box-shadow:0 6px 30px rgba(13,71,161,.12)}
+  .role-badge{font-size:.75rem}
+  .cursor-default{cursor:default}
+  @media print{
+    .no-print{display:none!important}
+    .sidebar{display:none}
+    .container-fluid{padding:0}
+    main{width:100%}
+    .card{box-shadow:none}
+  }
 </style>
 </head>
 <body>
 
-<!-- شريط علوي -->
-<nav class="navbar navbar-expand-lg">
-  <div class="container-fluid">
-    <a class="navbar-brand fw-bold" href="#">📊 برنامج الأرباح الشهري</a>
-    <div class="ms-auto d-flex align-items-center gap-2">
+<!-- ============ شاشة الدخول (نظيفة) ============ -->
+<div id="loginScreen" class="login-wrap">
+  <div class="card login-card p-4">
+    <h5 class="text-center mb-3">🔐 <span data-i18n="loginTitle">تسجيل الدخول</span></h5>
+    <div class="mb-3">
+      <label class="form-label" for="loginUser" data-i18n="username">اسم المستخدم</label>
+      <input id="loginUser" class="form-control" autocomplete="username">
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="loginPass" data-i18n="password">كلمة المرور</label>
+      <input id="loginPass" class="form-control" type="password" autocomplete="current-password">
+    </div>
+    <div class="d-grid gap-2">
+      <button class="btn btn-primary" id="btnDoLogin"><span data-i18n="login">دخول</span></button>
+    </div>
+    <div id="loginMsg" class="text-danger small mt-2" style="min-height:1.25rem"></div>
+    <div class="d-flex justify-content-between mt-3">
+      <div></div>
       <div class="btn-group" role="group" aria-label="lang">
-        <button id="btn-ar" class="btn btn-light btn-sm">العربية</button>
-        <button id="btn-en" class="btn btn-outline-light btn-sm">English</button>
+        <button id="btn-ar" class="btn btn-outline-secondary btn-sm">العربية</button>
+        <button id="btn-en" class="btn btn-outline-secondary btn-sm">English</button>
       </div>
-      <button id="btn-signout" class="btn btn-light btn-sm d-none">🚪 <span data-i18n="signout">تسجيل خروج</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ التطبيق ============ -->
+<nav class="navbar navbar-expand-lg d-none" id="appNavbar">
+  <div class="container-fluid">
+    <a class="navbar-brand fw-bold" href="#">📊 <span data-i18n="appTitle">برنامج الأرباح الشهري</span></a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMain">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navMain">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item">
+          <span id="currentRoleBadge" class="badge bg-light text-dark role-badge cursor-default ms-2">—</span>
+        </li>
+      </ul>
+      <div class="d-flex gap-2 align-items-center">
+        <div class="btn-group no-print" role="group" aria-label="lang">
+          <button id="nav-btn-ar" class="btn btn-light btn-sm">العربية</button>
+          <button id="nav-btn-en" class="btn btn-outline-light btn-sm">English</button>
+        </div>
+
+        <input type="file" id="importFile" class="d-none" accept=".json" />
+        <button class="btn btn-light btn-sm no-print" onclick="document.getElementById('importFile').click()">📥 <span data-i18n="import">استيراد بيانات</span></button>
+        <button class="btn btn-light btn-sm no-print" onclick="exportJSON()">📤 <span data-i18n="exportJson">تصدير JSON</span></button>
+        <button class="btn btn-light btn-sm no-print" onclick="exportExcel()">📊 <span data-i18n="exportExcel">تصدير Excel</span></button>
+
+        <button id="btnSaveCloud" class="btn btn-light btn-sm no-print" onclick="manualSaveCloud()">☁️ <span data-i18n="saveCloud">حفظ سحابي</span></button>
+        <button id="btnLoadCloud" class="btn btn-light btn-sm no-print" onclick="manualLoadCloud()">☁️ <span data-i18n="loadCloud">تحميل سحابي</span></button>
+
+        <button id="btnUsers" class="btn btn-warning btn-sm no-print d-none" data-bs-toggle="modal" data-bs-target="#usersModal">👤 <span data-i18n="manageUsers">إدارة المستخدمين</span></button>
+
+        <button class="btn btn-outline-light btn-sm no-print" onclick="window.print()">🖨️ <span data-i18n="print">طباعة</span></button>
+        <button class="btn btn-outline-light btn-sm no-print" onclick="doLogout()">🚪 <span data-i18n="logout">خروج</span></button>
+      </div>
     </div>
   </div>
 </nav>
 
-<!-- شاشة الدخول -->
-<section id="auth-view" class="container">
-  <div class="card">
-    <div class="card-body p-4">
-      <div class="text-center mb-3">
-        <div class="auth-logo">🔐</div>
-        <h5 class="mt-2" data-i18n="signinTitle">تسجيل الدخول</h5>
-        <div class="auth-hint" data-i18n="signinHint">ادخل بريدك وكلمة المرور للمتابعة.</div>
+<div id="appShell" class="container-fluid d-none">
+  <div class="row g-0">
+    <aside class="col-12 col-lg-3 col-xl-2 sidebar p-3">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <h6 class="m-0 text-muted" data-i18n="branches">الفروع</h6>
+      </div>
+      <div id="branchList" class="list-group mb-4"></div>
+
+      <div class="mb-3">
+        <h6 class="text-muted" data-i18n="adminSettings">إعدادات التوزيع الإداري</h6>
+        <div id="adminSettings" class="vstack gap-2"></div>
+        <small class="text-muted d-block mt-2" data-i18n="adminHint">
+          * الفروع المفعَّلة فقط تتحمل المصروف الإداري المقسّط عند اختيار “توزيع على الفروع”.
+        </small>
       </div>
 
-      <div class="vstack gap-2">
-        <label class="form-label" data-i18n="email">البريد الإلكتروني</label>
-        <input id="auth-email" type="email" class="form-control" placeholder="name@example.com" autocomplete="username" />
-        <label class="form-label mt-2" data-i18n="password">كلمة المرور</label>
-        <input id="auth-pass" type="password" class="form-control" placeholder="••••••••" autocomplete="current-password" />
+      <div class="mt-4 no-print">
+        <button class="btn btn-outline-danger btn-sm" onclick="wipeLocalConfirm()">
+          <span data-i18n="wipe">مسح كل البيانات المحلية</span>
+        </button>
+      </div>
+    </aside>
+
+    <main class="col-12 col-lg-9 col-xl-10 p-3">
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <h4 id="branchTitle" class="m-0">—</h4>
+        <span class="pill"><span class="muted" data-i18n="reportMonth">شهر التقرير</span>:
+          <input type="month" id="monthCurrent" class="form-control form-control-sm d-inline-block" style="width:160px"></span>
+        <span class="pill"><span class="muted" data-i18n="compareWith">مقارنة مع</span>:
+          <input type="month" id="monthCompare" class="form-control form-control-sm d-inline-block" style="width:160px"></span>
+        <button id="btnCopyPrev" class="btn btn-outline-secondary btn-sm no-print" onclick="copyFromPrevious()">
+          <span data-i18n="copyFromCmp">نسخ بنود الشهر المقارَن</span>
+        </button>
+        <button id="btnAddInst" class="btn btn-outline-primary btn-sm no-print" onclick="openInstallment()">
+          ➕ <span data-i18n="addInstallment">مصروف مقسّط</span>
+        </button>
+        <button id="btnManageInst" class="btn btn-outline-primary btn-sm no-print" onclick="openManageInstallments()">
+          ⚙️ <span data-i18n="manageInstallments">إدارة المقسّط</span>
+        </button>
       </div>
 
-      <div class="d-grid gap-2 mt-3">
-        <button id="btn-login" class="btn btn-primary"><span data-i18n="signinBtn">دخول</span></button>
-        <button id="btn-register" class="btn btn-outline-primary"><span data-i18n="signupBtn">إنشاء حساب جديد</span></button>
-      </div>
+      <hr/>
 
-      <div id="auth-error" class="text-danger small mt-3" style="display:none"></div>
-
-      <div class="text-center mt-3">
-        <span class="auth-hint" data-i18n="firstTime">
-          أول مرة تستخدم السحابة؟ اضغط “إنشاء حساب جديد”، ثم سجّل الدخول.
-        </span>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- الواجهة بعد تسجيل الدخول -->
-<section id="app-view" class="container-fluid" style="display:none">
-  <div class="row g-3 p-3">
-    <div class="col-12 d-flex align-items-center gap-2 flex-wrap">
-      <span class="pill"><span class="muted" data-i18n="state">الحالة</span>:
-        <b id="login-state" class="text-success">—</b>
-      </span>
-      <span class="pill"><span class="muted" data-i18n="user">المستخدم</span>:
-        <b id="login-user">—</b>
-      </span>
-      <div class="ms-auto d-flex gap-2">
-        <button class="btn btn-outline-success btn-sm" id="btn-save-cloud">☁️ <span data-i18n="saveCloud">حفظ سحابي</span></button>
-        <button class="btn btn-outline-secondary btn-sm" id="btn-load-cloud">☁️ <span data-i18n="loadCloud">تحميل سحابي</span></button>
-      </div>
-    </div>
-
-    <!-- ضع برنامجك الكامل هنا كما هو بدون تغيير -->
-    <div class="col-12">
-      <div class="card">
-        <div class="card-header d-flex align-items-center justify-content-between">
-          <span>📒 <b data-i18n="yourApp">برنامجك</b></span>
-          <span class="text-muted small" data-i18n="yourAppHint">ضع هنا كود الواجهة الحالي (الجداول/الأقسام/الحسابات…)</span>
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center section-head" data-bs-toggle="collapse" data-bs-target="#sec-income">
+          <span class="section-title">💰 <span data-i18n="income">الإيرادات</span></span>
+          <div>
+            <span class="badge badge-soft me-2"><span data-i18n="sum">الإجمالي</span>: <b id="sum-income">0</b></span>
+            <button id="btnAddIncome" class="btn btn-sm btn-outline-primary no-print" onclick="addRow('income')">➕ <span data-i18n="addRow">إضافة بند</span></button>
+          </div>
         </div>
-        <div class="card-body" id="your-app">
-          <!-- ⬅️⬅️⬅️  الصق هنا واجهتك الحالية (التي تصل ~1000 سطر)  ⬅️⬅️⬅️
-               لن تحتاج لتعديل أي شيء بداخلها. فقط تأكد أن لديك كائن بياناتك DB
-               أو غيّر الدوال saveLocal()/renderPage() أدناه لتناسبك. -->
-          <div class="alert alert-info m-0">
-            <div data-i18n="placeholder">
-              هذه مجرد مساحة مؤقتة للشرح. الصق واجهتك الحالية هنا ليعمل كل شيء كما كان،
-              لكن مع تسجيل الدخول الآمن وحفظ/تحميل سحابي لكل مستخدم.
+        <div id="sec-income" class="collapse show">
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-bordered m-0">
+                <thead class="table-light">
+                  <tr><th style="width:55%" data-i18n="item">البند</th><th style="width:25%" data-i18n="amount">المبلغ</th><th style="width:20%" class="no-print" data-i18n="actions">إجراءات</th></tr>
+                </thead>
+                <tbody id="tbl-income"></tbody>
+              </table>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center section-head" data-bs-toggle="collapse" data-bs-target="#sec-operating">
+          <span class="section-title">🛠️ <span data-i18n="operating">مصروفات تشغيل</span></span>
+          <div>
+            <span class="badge badge-soft me-2"><span data-i18n="sum">الإجمالي</span>: <b id="sum-operating">0</b></span>
+            <button id="btnAddOp" class="btn btn-sm btn-outline-primary no-print" onclick="addRow('operating')">➕ <span data-i18n="addRow">إضافة بند</span></button>
+          </div>
+        </div>
+        <div id="sec-operating" class="collapse show">
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-bordered m-0">
+                <thead class="table-light">
+                  <tr><th style="width:55%" data-i18n="item">البند</th><th style="width:25%" data-i18n="amount">المبلغ</th><th style="width:20%" class="no-print" data-i18n="actions">إجراءات</th></tr>
+                </thead>
+                <tbody id="tbl-operating"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center section-head" data-bs-toggle="collapse" data-bs-target="#sec-install">
+          <span class="section-title">📆 <span data-i18n="installments">مصروف مقسّط (هذا الشهر)</span></span>
+          <div>
+            <span class="badge badge-soft me-2"><span data-i18n="sum">الإجمالي</span>: <b id="sum-installments">0</b></span>
+          </div>
+        </div>
+        <div id="sec-install" class="collapse show">
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-bordered m-0">
+                <thead class="table-light">
+                  <tr><th style="width:55%" data-i18n="item">البند</th><th style="width:25%" data-i18n="amount">المبلغ</th><th style="width:20%" data-i18n="section">القسم</th></tr>
+                </thead>
+                <tbody id="tbl-installments"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center section-head" data-bs-toggle="collapse" data-bs-target="#sec-admin">
+          <span class="section-title">🏢 <span data-i18n="admin">مصروفات إدارية</span></span>
+          <div>
+            <span class="badge badge-soft me-2"><span data-i18n="sum">الإجمالي</span>: <b id="sum-admin">0</b></span>
+            <button id="btnAddAdmin" class="btn btn-sm btn-outline-primary no-print" onclick="addRow('admin')">➕ <span data-i18n="addRow">إضافة بند</span></button>
+          </div>
+        </div>
+        <div id="sec-admin" class="collapse show">
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-bordered m-0">
+                <thead class="table-light">
+                  <tr><th style="width:55%" data-i18n="item">البند</th><th style="width:25%" data-i18n="amount">المبلغ</th><th style="width:20%" class="no-print" data-i18n="actions">إجراءات</th></tr>
+                </thead>
+                <tbody id="tbl-admin"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header section-title">🧾 <span data-i18n="summary">الملخص</span></div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-6 col-md-3"><div class="p-3 border rounded bg-light"><span data-i18n="totIncome">مجموع الإيرادات</span>: <b id="s-inc">0</b></div></div>
+            <div class="col-6 col-md-3"><div class="p-3 border rounded bg-light"><span data-i18n="totExp">مجموع المصروفات</span>: <b id="s-exp">0</b></div></div>
+            <div class="col-6 col-md-3"><div class="p-3 border rounded bg-light"><span data-i18n="profit">الربح</span>: <b id="s-profit" class="profit-pos">0</b></div></div>
+            <div class="col-6 col-md-3"><div class="p-3 border rounded bg-light"><span data-i18n="margin">نسبة الربح</span>: <b id="s-margin">0%</b></div></div>
+            <div class="col-12"><div class="p-3 border rounded">
+              <span data-i18n="compareWith">المقارنة مع</span> <span id="cmp-month" class="muted">—</span>:
+              <span data-i18n="deltaAmt">فرق المبلغ</span> <b id="cmp-amt">0</b> |
+              <span data-i18n="deltaPct">فرق النسبة</span> <b id="cmp-pct">0%</b>
+            </div></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
   </div>
-</section>
+</div>
 
-<!-- Firebase SDKs -->
+<!-- Modal: إضافة/إدارة مصروف مقسّط -->
+<div class="modal fade" id="installmentModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title" data-i18n="addInstallment">إضافة مصروف مقسّط</h6>
+        <button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+      <div class="modal-body">
+        <div class="mb-2"><label class="form-label" data-i18n="itemName">اسم البند</label>
+          <input id="inst-name" class="form-control" placeholder=""></div>
+
+        <div class="mb-2"><label class="form-label" data-i18n="section">القسم</label>
+          <select id="inst-section" class="form-select">
+            <option value="operating" data-i18n="operating">تشغيل</option>
+            <option value="admin" data-i18n="admin">إداري</option>
+          </select>
+        </div>
+
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label" data-i18n="totalAmount">إجمالي المبلغ</label>
+            <input id="inst-total" type="number" class="form-control" value="0"></div>
+          <div class="col-6"><label class="form-label" data-i18n="monthsCount">عدد الأشهر</label>
+            <input id="inst-months" type="number" class="form-control" value="3" min="1"></div>
+        </div>
+
+        <div class="row g-2 mt-1">
+          <div class="col-6"><label class="form-label" data-i18n="startMonth">شهر البداية</label>
+            <input id="inst-start" type="month" class="form-control"></div>
+          <div class="col-6"><label class="form-label" data-i18n="scope">النطاق</label>
+            <select id="inst-scope" class="form-select">
+              <option value="single" data-i18n="thisBranch">هذا الفرع فقط</option>
+              <option value="weighted" data-i18n="weighted">توزيع على الفروع حسب الأوزان</option>
+            </select>
+          </div>
+        </div>
+        <input type="hidden" id="inst-id">
+        <small class="text-muted d-block mt-2" data-i18n="instHint">
+          سيُحمَّل تلقائيًا كل شهر: (الإجمالي ÷ عدد الأشهر). إذا اخترت “توزيع على الفروع” فسيُقسَّم المبلغ الشهري حسب أوزان التوزيع للفروع المفعّلة.
+        </small>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="cancel">إلغاء</button>
+        <button id="btnSaveInst" class="btn btn-primary" onclick="saveInstallment()" data-i18n="save">حفظ</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: إدارة المقسّط -->
+<div class="modal fade" id="manageInstModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title" data-i18n="manageInstallments">إدارة المقسّط</h6>
+        <button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+      <div class="modal-body">
+        <div class="table-responsive">
+          <table class="table table-bordered">
+            <thead class="table-light">
+              <tr>
+                <th data-i18n="item">البند</th>
+                <th data-i18n="section">القسم</th>
+                <th data-i18n="totalAmount">الإجمالي</th>
+                <th data-i18n="monthsCount">الأشهر</th>
+                <th data-i18n="startMonth">البداية</th>
+                <th class="no-print" data-i18n="actions">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-manage-inst"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="close">إغلاق</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: إدارة المستخدمين (Admin فقط) -->
+<div class="modal fade" id="usersModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title" data-i18n="manageUsers">إدارة المستخدمين</h6>
+        <button class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+      <div class="modal-body">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-3">
+            <label class="form-label" data-i18n="username">اسم المستخدم</label>
+            <input id="usr-name" class="form-control">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" data-i18n="password">كلمة المرور</label>
+            <input id="usr-pass" type="password" class="form-control" placeholder="••••••">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" data-i18n="role">الدور</label>
+            <select id="usr-role" class="form-select">
+              <option value="admin">admin</option>
+              <option value="editor">editor</option>
+              <option value="viewer">viewer</option>
+            </select>
+          </div>
+          <div class="col-md-3 d-grid">
+            <button class="btn btn-primary" onclick="addOrUpdateUser()"><span data-i18n="save">حفظ</span></button>
+          </div>
+        </div>
+        <hr>
+        <div class="table-responsive">
+          <table class="table table-bordered">
+            <thead class="table-light">
+              <tr>
+                <th data-i18n="username">اسم المستخدم</th>
+                <th data-i18n="role">الدور</th>
+                <th class="no-print" data-i18n="actions">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-users"></tbody>
+          </table>
+        </div>
+        <small class="text-muted" data-i18n="pwdHashNote">* كلمات المرور تُحفظ كبصمة SHA-256 (لا يتم تخزينها كنص صريح).</small>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="close">إغلاق</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Firebase init (CDN Modules) -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-  import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+  import { getFirestore } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-  // ✅ إعداد مشروعك (نفس الذي استخدمته من قبل)
   const firebaseConfig = {
     apiKey: "AIzaSyDgtifnouF0AGzBxWls3wPk7gikSqOBFm0",
     authDomain: "monthly-prfits.firebaseapp.com",
@@ -137,222 +399,610 @@ body{ background:#fff; color:#222; }
     appId: "1:896730662080:web:a41850c6736ab6b02d1925",
     measurementId: "G-KX9KFLVV3J"
   };
-
-  // ✅ تهيئة الخدمات
   const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db   = getFirestore(app);
-
-  // ----------------- i18n بسيط (عربي/إنجليزي) -----------------
-  const I18N = {
-    ar: {
-      signout:"تسجيل خروج",
-      signinTitle:"تسجيل الدخول",
-      signinHint:"ادخل بريدك وكلمة المرور للمتابعة.",
-      email:"البريد الإلكتروني",
-      password:"كلمة المرور",
-      signinBtn:"دخول",
-      signupBtn:"إنشاء حساب جديد",
-      firstTime:"أول مرة تستخدم السحابة؟ اضغط “إنشاء حساب جديد”، ثم سجّل الدخول.",
-      state:"الحالة",
-      user:"المستخدم",
-      saveCloud:"حفظ سحابي",
-      loadCloud:"تحميل سحابي",
-      yourApp:"الواجهة",
-      yourAppHint:"ضع هنا كود الواجهة الحالي (الجداول/الأقسام/الحسابات…)",
-      placeholder:"هذه مجرد مساحة مؤقتة للشرح. الصق واجهتك الحالية هنا ليعمل كل شيء كما كان، لكن مع تسجيل الدخول الآمن وحفظ/تحميل سحابي لكل مستخدم.",
-      signedIn:"متصل",
-      signedOut:"غير متصل",
-      savedOk:"✅ تم الحفظ في السحابة",
-      savedErr:"❌ خطأ في الحفظ بالسحابة",
-      loadedOk:"✅ تم التحميل من السحابة",
-      loadedEmpty:"⚠️ لا توجد بيانات سحابية بعد",
-      loadedErr:"❌ خطأ في تحميل البيانات",
-    },
-    en: {
-      signout:"Sign out",
-      signinTitle:"Sign in",
-      signinHint:"Enter your email and password to continue.",
-      email:"Email",
-      password:"Password",
-      signinBtn:"Sign in",
-      signupBtn:"Create new account",
-      firstTime:"First time? Click “Create new account”, then sign in.",
-      state:"Status",
-      user:"User",
-      saveCloud:"Save to Cloud",
-      loadCloud:"Load from Cloud",
-      yourApp:"Your App",
-      yourAppHint:"Paste your existing UI here (tables/sections/calculations…)",
-      placeholder:"Temporary placeholder. Paste your existing UI so everything works as before, with secure login and per-user cloud storage.",
-      signedIn:"Online",
-      signedOut:"Offline",
-      savedOk:"✅ Saved to cloud",
-      savedErr:"❌ Cloud save failed",
-      loadedOk:"✅ Loaded from cloud",
-      loadedEmpty:"⚠️ No cloud data yet",
-      loadedErr:"❌ Cloud load failed",
-    }
-  };
-  let LANG = 'ar';
-  function t(k){ return (I18N[LANG]||{})[k] || k; }
-  function applyLang(){
-    document.documentElement.lang = LANG;
-    document.documentElement.dir = LANG==='ar'?'rtl':'ltr';
-    document.querySelectorAll('[data-i18n]').forEach(el=>{
-      const key = el.getAttribute('data-i18n');
-      el.textContent = t(key);
-    });
-    // تحديث الحالات النصية
-    document.getElementById('login-state').textContent =
-      auth.currentUser ? t('signedIn') : t('signedOut');
-  }
-  document.getElementById('btn-ar').onclick=()=>{
-    LANG='ar';
-    document.getElementById('btn-ar').className='btn btn-light btn-sm';
-    document.getElementById('btn-en').className='btn btn-outline-light btn-sm';
-    applyLang();
-  };
-  document.getElementById('btn-en').onclick=()=>{
-    LANG='en';
-    document.getElementById('btn-en').className='btn btn-light btn-sm';
-    document.getElementById('btn-ar').className='btn btn-outline-light btn-sm';
-    applyLang();
-  };
-
-  // ----------------- بياناتك المحلية (DB) -----------------
-  // ملاحظة: إن كان لديك كائن DB جاهز في واجهتك القديمة، اتركه كما هو.
-  // هنا نضع افتراضي بسيط لتجارب الحفظ/التحميل:
-  const STORE_KEY = "profit_manager_v3";
-  function loadLocal(){
-    try{ return JSON.parse(localStorage.getItem(STORE_KEY) || "{}"); }
-    catch{ return {}; }
-  }
-  function saveLocal(obj){
-    localStorage.setItem(STORE_KEY, JSON.stringify(obj||DB));
-  }
-  // إن كان لديك DB سابق فاستبدل هذا:
-  let DB = loadLocal();
-
-  // ----------------- Firestore (حفظ/تحميل لكل مستخدم) -----------------
-  async function saveToCloud(){
-    if(!auth.currentUser){ alert(t('savedErr')); return; }
-    try{
-      const payload = { content: JSON.stringify(DB), updatedAt: new Date().toISOString() };
-      const ref = doc(db, "users", auth.currentUser.uid, "profits", "main");
-      await setDoc(ref, payload, { merge:true });
-      alert(t('savedOk'));
-    }catch(e){
-      console.error(e); alert(t('savedErr'));
-    }
-  }
-  async function loadFromCloud(){
-    if(!auth.currentUser){ alert(t('loadedErr')); return; }
-    try{
-      const ref = doc(db, "users", auth.currentUser.uid, "profits", "main");
-      const snap = await getDoc(ref);
-      if(snap.exists()){
-        const raw = snap.data().content;
-        DB = JSON.parse(raw||"{}");
-        saveLocal(DB);
-        // إذا كانت لديك دالة renderPage() في واجهتك، استدعها:
-        if(typeof window.renderPage === 'function') window.renderPage();
-        alert(t('loadedOk'));
-      }else{
-        alert(t('loadedEmpty'));
-      }
-    }catch(e){
-      console.error(e); alert(t('loadedErr'));
-    }
-  }
-
-  // ربط الأزرار
-  document.getElementById('btn-save-cloud').onclick=saveToCloud;
-  document.getElementById('btn-load-cloud').onclick=loadFromCloud;
-
-  // ----------------- Auth: تسجيل/دخول/خروج -----------------
-  const $email = document.getElementById('auth-email');
-  const $pass  = document.getElementById('auth-pass');
-  const $err   = document.getElementById('auth-error');
-
-  async function doLogin(){
-    $err.style.display='none';
-    try{
-      await signInWithEmailAndPassword(auth, $email.value.trim(), $pass.value);
-    }catch(e){
-      console.error(e);
-      $err.textContent = (LANG==='ar'?'فشل تسجيل الدخول: ':'Sign-in failed: ') + (e.message||e.code||'');
-      $err.style.display='block';
-    }
-  }
-  async function doRegister(){
-    $err.style.display='none';
-    try{
-      await createUserWithEmailAndPassword(auth, $email.value.trim(), $pass.value);
-      // بعد الإنشاء، يصبح المستخدم مسجلاً تلقائياً
-    }catch(e){
-      console.error(e);
-      $err.textContent = (LANG==='ar'?'فشل إنشاء الحساب: ':'Sign-up failed: ') + (e.message||e.code||'');
-      $err.style.display='block';
-    }
-  }
-  async function doSignout(){
-    await signOut(auth);
-  }
-
-  document.getElementById('btn-login').onclick=doLogin;
-  document.getElementById('btn-register').onclick=doRegister;
-  document.getElementById('btn-signout').onclick=doSignout;
-
-  // تبديل الواجهات حسب حالة الدخول
-  onAuthStateChanged(auth, (user)=>{
-    const aut = document.getElementById('auth-view');
-    const appV= document.getElementById('app-view');
-    const signBtn = document.getElementById('btn-signout');
-    const uLbl = document.getElementById('login-user');
-    const st  = document.getElementById('login-state');
-
-    if(user){
-      aut.style.display='none';
-      appV.style.display='';
-      signBtn.classList.remove('d-none');
-      uLbl.textContent = user.email||user.uid;
-      st.textContent = t('signedIn');
-      st.classList.remove('text-danger'); st.classList.add('text-success');
-
-      // عند أول دخول يمكنك تحميل سحابي تلقائياً (اختياري):
-      // loadFromCloud();
-
-      // لو لديك واجهة قديمة تعتمد على init/render:
-      if(typeof window.renderPage === 'function') window.renderPage();
-
-    }else{
-      aut.style.display='';
-      appV.style.display='none';
-      signBtn.classList.add('d-none');
-      uLbl.textContent = '—';
-      st.textContent = t('signedOut');
-      st.classList.add('text-danger'); st.classList.remove('text-success');
-    }
-  });
-
-  // تهيئة اللغة الافتراضية
-  (function init(){
-    LANG='ar';
-    applyLang();
-  })();
+  window._db = getFirestore(app);
 </script>
 
-<!-- ملاحظة مهمة للأمان (ضعها في قواعد Firestore): 
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{uid}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
-    }
+<script>
+/* ================= I18N ================= */
+const I18N = {
+  ar:{ appTitle:"برنامج الأرباح الشهري", loginTitle:"تسجيل الدخول", username:"اسم المستخدم", password:"كلمة المرور", login:"دخول", logout:"خروج",
+       import:"استيراد بيانات", exportJson:"تصدير JSON", exportExcel:"تصدير Excel", saveCloud:"حفظ سحابي", loadCloud:"تحميل سحابي", print:"طباعة",
+       branches:"الفروع", adminSettings:"إعدادات التوزيع الإداري", adminHint:"* الفروع المفعَّلة فقط تتحمل المصروف الإداري المقسّط عند اختيار “توزيع على الفروع”.",
+       wipe:"مسح كل البيانات المحلية", confirmWipe:"مسح كل البيانات المحلية؟",
+       reportMonth:"شهر التقرير", compareWith:"مقارنة مع", copyFromCmp:"نسخ بنود الشهر المقارَن",
+       addInstallment:"مصروف مقسّط", manageInstallments:"إدارة المقسّط", manageUsers:"إدارة المستخدمين", close:"إغلاق",
+       income:"الإيرادات", operating:"مصروفات تشغيل", installments:"مصروف مقسّط (هذا الشهر)", admin:"مصروفات إدارية",
+       sum:"الإجمالي", addRow:"إضافة بند", item:"البند", amount:"المبلغ", actions:"إجراءات", section:"القسم",
+       summary:"الملخص", totIncome:"مجموع الإيرادات", totExp:"مجموع المصروفات", profit:"الربح", margin:"نسبة الربح",
+       deltaAmt:"فرق المبلغ", deltaPct:"فرق النسبة", itemName:"اسم البند", totalAmount:"إجمالي المبلغ",
+       monthsCount:"عدد الأشهر", startMonth:"شهر البداية", scope:"النطاق",
+       thisBranch:"هذا الفرع فقط", weighted:"توزيع على الفروع حسب الأوزان", instHint:"سيُحمَّل تلقائيًا كل شهر: (الإجمالي ÷ عدد الأشهر). إذا اخترت “توزيع على الفروع” فسيُقسَّم المبلغ الشهري حسب أوزان التوزيع للفروع المفعّلة.",
+       cancel:"إلغاء", save:"حفظ", role:"الدور",
+       pwdHashNote:"* كلمات المرور تُحفظ كبصمة SHA-256 (لا يتم تخزينها كنص صريح).",
+       notAllowed:"صلاحياتك لا تسمح بهذه العملية.",
+       usersMerged:"تمت مزامنة المستخدمين.",
+       cloudSaved:"تم الحفظ سحابيًا", cloudLoaded:"تم التحميل من السحابة", noCloud:"لا يوجد اتصال بالسحابة", noData:"لا توجد بيانات."
+  },
+  en:{ appTitle:"Monthly Profit App", loginTitle:"Sign in", username:"Username", password:"Password", login:"Login", logout:"Logout",
+       import:"Import JSON", exportJson:"Export JSON", exportExcel:"Export Excel", saveCloud:"Save Cloud", loadCloud:"Load Cloud", print:"Print",
+       branches:"Branches", adminSettings:"Admin allocation", adminHint:"* Only enabled branches share admin installments when 'weighted' is selected.",
+       wipe:"Clear local data", confirmWipe:"Clear all local data?",
+       reportMonth:"Report month", compareWith:"Compare with", copyFromCmp:"Copy from compared month",
+       addInstallment:"Installment", manageInstallments:"Manage installments", manageUsers:"Manage users", close:"Close",
+       income:"Income", operating:"Operating expenses", installments:"Installments (this month)", admin:"Administrative expenses",
+       sum:"Total", addRow:"Add row", item:"Item", amount:"Amount", actions:"Actions", section:"Section",
+       summary:"Summary", totIncome:"Total income", totExp:"Total expenses", profit:"Profit", margin:"Profit margin",
+       deltaAmt:"Amount delta", deltaPct:"Margin delta", itemName:"Item name", totalAmount:"Total amount",
+       monthsCount:"Months", startMonth:"Start month", scope:"Scope",
+       thisBranch:"This branch only", weighted:"Weighted across branches", instHint:"A monthly share (total ÷ months) is auto-applied. If 'weighted', it splits by branch weights.",
+       cancel:"Cancel", save:"Save", role:"Role",
+       pwdHashNote:"* Passwords are stored as SHA-256 hashes.",
+       notAllowed:"Your role does not permit this action.",
+       usersMerged:"Users synced.",
+       cloudSaved:"Saved to cloud", cloudLoaded:"Loaded from cloud", noCloud:"No cloud connection", noData:"No data."
+  }
+};
+let LANG='ar';
+function t(k){return (I18N[LANG]||{})[k]||k}
+function applyLang(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  document.documentElement.setAttribute('lang',LANG);
+  document.documentElement.setAttribute('dir',LANG==='ar'?'rtl':'ltr');
+  renderPage();
+}
+['btn-ar','btn-en','nav-btn-ar','nav-btn-en'].forEach(id=>{
+  const el=document.getElementById(id); if(!el) return;
+  el.addEventListener('click',()=>{
+    LANG = id.endsWith('ar')?'ar':'en';
+    applyLang();
+  });
+});
+
+/* ================= مفاتيح التخزين ================= */
+const STORE_KEY = "profit_manager_v3";
+const USERS_KEY = "profit_users_v1";
+const SESSION_KEY = "profit_session_v1";
+
+/* ================= بيانات التطبيق ================= */
+const FIXED_BRANCHES = [
+  {id: cid(), name:"الحفلات", active:true,  weight:1, includeAdmin:true},
+  {id: cid(), name:"الكيت",   active:true,  weight:1, includeAdmin:true},
+  {id: cid(), name:"كلاسيك",  active:true,  weight:1, includeAdmin:true},
+  {id: cid(), name:"موند",    active:true,  weight:1, includeAdmin:true},
+  {id: cid(), name:"هورن",    active:true,  weight:1, includeAdmin:true},
+  {id: cid(), name:"هجر فود", active:true,  weight:1, includeAdmin:false}
+];
+const DEFAULT_DB = { branches: FIXED_BRANCHES, months:{}, installments:[] };
+let DB = loadLocal();
+let currentBranchId = DB.branches[0]?.id || null;
+let currentMonth = new Date().toISOString().slice(0,7);
+let compareMonth = "";
+
+/* ================= المستخدمون + هَش ================= */
+function loadUsers(){
+  const raw=localStorage.getItem(USERS_KEY);
+  if(raw){ try{ return JSON.parse(raw);}catch{return []} }
+  return [];
+}
+function saveUsers(arr){ localStorage.setItem(USERS_KEY, JSON.stringify(arr||[])); autoSaveUsersCloud(); }
+async function sha256(txt){
+  const enc = new TextEncoder().encode(txt);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function seedDefaultAdminIfNeeded(){
+  let users = loadUsers();
+  if(users.length===0){
+    // admin / admin442
+    sha256('admin442').then(hash=>{
+      users = [{username:'admin', passHash:hash, role:'admin', createdAt:new Date().toISOString()}];
+      saveUsers(users);
+    });
   }
 }
--->
+seedDefaultAdminIfNeeded();
 
+function getSession(){
+  try{ return JSON.parse(localStorage.getItem(SESSION_KEY)||'null'); }catch{return null}
+}
+function setSession(obj){
+  if(obj) localStorage.setItem(SESSION_KEY, JSON.stringify(obj));
+  else localStorage.removeItem(SESSION_KEY);
+}
+
+/* ================= صلاحيات ================= */
+function canEdit(){ const s=getSession(); return s && (s.role==='admin' || s.role==='editor'); }
+function isAdmin(){ const s=getSession(); return s && s.role==='admin'; }
+function isViewer(){ const s=getSession(); return s && s.role==='viewer'; }
+
+/* ================= واجهة الدخول/الخروج ================= */
+const loginUser=document.getElementById('loginUser');
+const loginPass=document.getElementById('loginPass');
+document.getElementById('btnDoLogin').addEventListener('click', doLogin);
+loginPass.addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
+
+async function doLogin(){
+  const u=loginUser.value.trim();
+  const p=loginPass.value;
+  if(!u||!p){ showLoginMsg(LANG==='ar'?'أدخل الاسم وكلمة المرور.':'Enter username and password.'); return; }
+  const users=loadUsers();
+  const found=users.find(x=>x.username===u);
+  if(!found){ showLoginMsg(LANG==='ar'?'المستخدم غير موجود.':'User not found.'); return; }
+  const hash=await sha256(p);
+  if(hash!==found.passHash){ showLoginMsg(LANG==='ar'?'كلمة المرور غير صحيحة.':'Wrong password.'); return; }
+  setSession({username:found.username, role:found.role, loginAt:Date.now()});
+  loginUser.value=""; loginPass.value="";
+  showApp();
+  // مزامنة تلقائية عند الدخول: حمّل من السحابة ثم احفظ بعد الدمج
+  await autoLoadCloud();
+  autoSaveCloud();
+}
+function showLoginMsg(msg){ document.getElementById('loginMsg').textContent=msg; }
+
+function showApp(){
+  document.getElementById('loginScreen').classList.add('d-none');
+  document.getElementById('appNavbar').classList.remove('d-none');
+  document.getElementById('appShell').classList.remove('d-none');
+  // زر إدارة المستخدمين للـ admin فقط
+  document.getElementById('btnUsers').classList.toggle('d-none', !isAdmin());
+  // شارات الدور
+  const s=getSession();
+  const badge=document.getElementById('currentRoleBadge');
+  badge.textContent = s ? (LANG==='ar'?'الدور: ':'Role: ')+s.role : '—';
+  // تعطيل عناصر التحرير إن كان viewer
+  enforceRoleUI();
+  renderBranches(); renderPage();
+}
+function doLogout(){
+  setSession(null);
+  location.reload();
+}
+
+/* ================= UI حسب الدور ================= */
+function enforceRoleUI(){
+  const viewer = isViewer();
+  ['btnAddIncome','btnAddOp','btnAddAdmin','btnCopyPrev','btnAddInst','btnManageInst','btnSaveCloud'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.disabled = viewer;
+  });
+  const loadBtn=document.getElementById('btnLoadCloud'); if(loadBtn) loadBtn.disabled=false;
+}
+
+/* ================= تخزين محلي ================= */
+function loadLocal(){
+  try{ return JSON.parse(localStorage.getItem(STORE_KEY) || JSON.stringify(DEFAULT_DB)); }
+  catch{ return JSON.parse(JSON.stringify(DEFAULT_DB)); }
+}
+function saveLocal(){ localStorage.setItem(STORE_KEY, JSON.stringify(DB)); }
+
+/* ================= أدوات ================= */
+function cid(){ return Math.random().toString(36).slice(2,10); }
+function sumRows(rows){ return rows.reduce((s,r)=> s + (+r.amount||0), 0); }
+function numberFmt(n){ return (+n||0).toLocaleString(LANG==='ar'?'ar-EG':'en-US', {maximumFractionDigits:2}); }
+
+/* ================= فروع + إعدادات ================= */
+function renderBranches(){
+  const list=document.getElementById('branchList'); list.innerHTML="";
+  DB.branches.forEach(b=>{
+    const a=document.createElement('a');
+    a.href="#"; a.className="list-group-item d-flex align-items-center justify-content-between";
+    if(b.id===currentBranchId) a.classList.add('active');
+    a.innerHTML=`<span>${b.name}</span>`;
+    a.onclick=(e)=>{e.preventDefault(); currentBranchId=b.id; renderPage();};
+    list.appendChild(a);
+  });
+
+  const box=document.getElementById('adminSettings'); box.innerHTML="";
+  DB.branches.forEach(b=>{
+    const row=document.createElement('div'); row.className="d-flex align-items-center gap-2";
+    row.innerHTML=`
+      <input type="checkbox" class="form-check-input" ${b.includeAdmin?'checked':''}
+        onchange="bToggleAdmin('${b.id}',this.checked)" ${isViewer()?'disabled':''}>
+      <span class="me-1" style="width:120px">${b.name}</span>
+      <input type="number" class="form-control form-control-sm" style="width:90px"
+        value="${b.weight}" min="0" step="0.1" onchange="bSetWeight('${b.id}',this.value)" ${isViewer()?'disabled':''}>
+      <span class="muted">${LANG==='ar'?'وزن':'Weight'}</span>`;
+    box.appendChild(row);
+  });
+}
+function bToggleAdmin(id,val){ if(isViewer()) return; const b=DB.branches.find(x=>x.id===id); if(b){ b.includeAdmin=!!val; saveLocal(); autoSaveCloud(); } }
+function bSetWeight(id,v){ if(isViewer()) return; const b=DB.branches.find(x=>x.id===id); if(b){ b.weight=parseFloat(v)||0; saveLocal(); autoSaveCloud(); } }
+
+/* ================= صفحة الفرع ================= */
+function ensureMonthBranch(mm,bid){
+  DB.months[mm]=DB.months[mm]||{};
+  DB.months[mm][bid]=DB.months[mm][bid]||{income:[],operating:[],admin:[]};
+  return DB.months[mm][bid];
+}
+document.getElementById('monthCurrent').addEventListener('change',e=>{ currentMonth=e.target.value; renderPage(); });
+document.getElementById('monthCompare').addEventListener('change',e=>{ compareMonth=e.target.value; updateSummary(); });
+
+function renderPage(){
+  if(!currentBranchId){ document.getElementById('branchTitle').textContent='—'; return; }
+  document.getElementById('branchTitle').textContent = DB.branches.find(b=>b.id===currentBranchId)?.name || '—';
+  document.getElementById('monthCurrent').value = currentMonth;
+  document.getElementById('monthCompare').value = compareMonth;
+
+  renderTable('income'); renderTable('operating'); renderTable('admin');
+  renderInstallmentsSnapshot();
+  updateSummary();
+}
+
+function addRow(section){
+  if(!canEdit()) return alert(t('notAllowed'));
+  const rows=ensureMonthBranch(currentMonth,currentBranchId)[section];
+  rows.push({name: LANG==='ar'?'بند جديد':'New item', amount:0});
+  saveLocal(); autoSaveCloud(); renderTable(section); updateSummary();
+}
+function delRow(section, idx){
+  if(!canEdit()) return alert(t('notAllowed'));
+  ensureMonthBranch(currentMonth,currentBranchId)[section].splice(idx,1);
+  saveLocal(); autoSaveCloud(); renderTable(section); updateSummary();
+}
+function editCell(section, idx, field, val){
+  if(!canEdit()) return;
+  const rows=ensureMonthBranch(currentMonth,currentBranchId)[section];
+  if(!rows[idx]) return;
+  rows[idx][field]= field==='amount' ? (parseFloat(val)||0) : val;
+  saveLocal(); autoSaveCloud(); updateSummary();
+}
+
+function renderTable(section){
+  const tbody=document.getElementById('tbl-'+section); tbody.innerHTML="";
+  const rows=ensureMonthBranch(currentMonth,currentBranchId)[section];
+
+  const autoRows = calcInstallmentsFor(currentMonth,currentBranchId,section)
+    .map(x=>({name:`(${LANG==='ar'?'مقسّط':'Install.'}) ${x.name}`, amount:x.amount, _auto:true}));
+
+  const all = rows.concat(autoRows);
+  all.forEach((r,i)=>{
+    const tr=document.createElement('tr');
+    const nameTd = r._auto ? r.name : `<input type="text" value="${r.name}" ${isViewer()?'disabled':''}
+                        oninput="editCell('${section}',${i},'name',this.value)">`;
+    const amtTd  = r._auto ? numberFmt(r.amount) : `<input type="number" value="${r.amount}" ${isViewer()?'disabled':''}
+                        oninput="editCell('${section}',${i},'amount',this.value)">`;
+    const actTd  = r._auto ? '<span class="text-muted">—</span>'
+                 : `<button class="btn btn-sm btn-outline-danger" ${isViewer()?'disabled':''}
+                        onclick="delRow('${section}',${i})">${LANG==='ar'?'حذف':'Delete'}</button>`;
+    tr.innerHTML=`<td>${nameTd}</td><td>${amtTd}</td><td class="no-print">${actTd}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  const sums=computeTotals(currentMonth,currentBranchId);
+  document.getElementById('sum-'+section).textContent =
+    section==='income'? numberFmt(sums.inc) : section==='operating'? numberFmt(sums.op) : numberFmt(sums.ad);
+}
+
+/* ================= المقسّط ================= */
+const instModal = new bootstrap.Modal('#installmentModal');
+const manageInstModal = new bootstrap.Modal('#manageInstModal');
+
+function openInstallment(){
+  if(!canEdit()) return alert(t('notAllowed'));
+  document.getElementById('inst-id').value='';
+  document.getElementById('inst-name').value='';
+  document.getElementById('inst-total').value=0;
+  document.getElementById('inst-months').value=3;
+  document.getElementById('inst-section').value='operating';
+  document.getElementById('inst-start').value=currentMonth;
+  document.getElementById('inst-scope').value='single';
+  instModal.show();
+}
+function saveInstallment(){
+  if(!canEdit()) return alert(t('notAllowed'));
+  const id=document.getElementById('inst-id').value;
+  const name=document.getElementById('inst-name').value.trim();
+  const total=parseFloat(document.getElementById('inst-total').value)||0;
+  const months=Math.max(1, parseInt(document.getElementById('inst-months').value)||1);
+  const start=document.getElementById('inst-start').value;
+  const section=document.getElementById('inst-section').value;
+  const scope=document.getElementById('inst-scope').value;
+  if(!name||!start){ alert(LANG==='ar'?'أكمل الحقول.':'Complete required fields.'); return; }
+  if(id){
+    const it=DB.installments.find(x=>x.id===id);
+    if(it){ Object.assign(it,{name,total,months,start,section,scope}); }
+  }else{
+    DB.installments.push({id:cid(), name,total,months,start,section,scope,branchId:currentBranchId,created:new Date().toISOString()});
+  }
+  saveLocal(); autoSaveCloud(); instModal.hide(); renderTable(section); renderInstallmentsSnapshot(); updateSummary();
+}
+function openManageInstallments(){
+  if(!canEdit()) return alert(t('notAllowed'));
+  const tbody=document.getElementById('tbl-manage-inst'); tbody.innerHTML="";
+  DB.installments.forEach(it=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td>${it.name}</td>
+      <td>${it.section==='operating'?(LANG==='ar'?'تشغيل':'Operating'):(LANG==='ar'?'إداري':'Admin')}</td>
+      <td>${numberFmt(it.total)}</td>
+      <td>${it.months}</td>
+      <td>${it.start}</td>
+      <td class="no-print d-flex gap-2">
+        <button class="btn btn-sm btn-outline-primary" onclick="editInst('${it.id}')">${LANG==='ar'?'تعديل':'Edit'}</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="delInst('${it.id}')">${LANG==='ar'?'حذف':'Delete'}</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+  manageInstModal.show();
+}
+function editInst(id){
+  const it=DB.installments.find(x=>x.id===id); if(!it) return;
+  document.getElementById('inst-id').value=it.id;
+  document.getElementById('inst-name').value=it.name;
+  document.getElementById('inst-total').value=it.total;
+  document.getElementById('inst-months').value=it.months;
+  document.getElementById('inst-section').value=it.section;
+  document.getElementById('inst-start').value=it.start;
+  document.getElementById('inst-scope').value=it.scope||'single';
+  manageInstModal.hide(); instModal.show();
+}
+function delInst(id){
+  if(!canEdit()) return;
+  DB.installments = DB.installments.filter(x=>x.id!==id);
+  saveLocal(); autoSaveCloud(); openManageInstallments(); renderInstallmentsSnapshot(); renderTable('operating'); renderTable('admin'); updateSummary();
+}
+function monthAdd(ym,k){ const [y,m]=ym.split('-').map(Number); const d=new Date(y, m-1+k,1); return d.toISOString().slice(0,7); }
+function calcInstallmentsFor(ym,bid,section){
+  const perMonth=[];
+  DB.installments.forEach(ins=>{
+    if(ins.section!==section) return;
+    const end=monthAdd(ins.start, ins.months-1);
+    if(ym<ins.start || ym>end) return;
+    const mAmount=ins.total/ins.months;
+    if((ins.scope||'single')==='single'){
+      if(ins.branchId===bid) perMonth.push({name:ins.name, amount:mAmount});
+    }else{
+      const eligible = DB.branches.filter(b=> section==='admin'? b.includeAdmin : true);
+      const weights = eligible.reduce((s,b)=> s+(+b.weight||0), 0) || 1;
+      const b=DB.branches.find(x=>x.id===bid);
+      const w= eligible.find(x=>x.id===bid) ? ((+b.weight||0)/weights) : 0;
+      perMonth.push({name:ins.name, amount:mAmount*w});
+    }
+  });
+  return perMonth;
+}
+function renderInstallmentsSnapshot(){
+  const tbody=document.getElementById('tbl-installments'); tbody.innerHTML="";
+  let total=0;
+  ['operating','admin'].forEach(sec=>{
+    const rows=calcInstallmentsFor(currentMonth,currentBranchId,sec);
+    rows.forEach(r=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML = `<td>${r.name}</td><td>${numberFmt(r.amount)}</td><td>${sec==='operating'?(LANG==='ar'?'تشغيل':'Operating'):(LANG==='ar'?'إداري':'Admin')}</td>`;
+      tbody.appendChild(tr);
+      total += (+r.amount||0);
+    });
+  });
+  document.getElementById('sum-installments').textContent=numberFmt(total);
+}
+
+/* ================= ملخص ومقارنة ================= */
+function computeTotals(month,bid){
+  const incRows=ensureMonthBranch(month,bid)['income'];
+  const opRows =ensureMonthBranch(month,bid)['operating'].concat(calcInstallmentsFor(month,bid,'operating'));
+  const adRows =ensureMonthBranch(month,bid)['admin'].concat(calcInstallmentsFor(month,bid,'admin'));
+  const inc=sumRows(incRows), op=sumRows(opRows), ad=sumRows(adRows);
+  const exp=op+ad, profit=inc-exp, margin=inc>0?(profit/inc*100):0;
+  return {inc,op,ad,exp,profit,margin};
+}
+function updateSummary(){
+  const t = computeTotals(currentMonth,currentBranchId);
+  document.getElementById('s-inc').textContent=numberFmt(t.inc);
+  document.getElementById('s-exp').textContent=numberFmt(t.exp);
+  const pEl=document.getElementById('s-profit'); pEl.textContent=numberFmt(t.profit);
+  pEl.className = t.profit>=0 ? 'profit-pos' : 'profit-neg';
+  document.getElementById('s-margin').textContent=(t.margin||0).toFixed(2)+'%';
+
+  let deltaAmt=0, deltaPct=0;
+  if(compareMonth){
+    const c=computeTotals(compareMonth,currentBranchId);
+    deltaAmt=t.profit - c.profit;
+    const pctA=t.inc>0?(t.profit/t.inc*100):0;
+    const pctB=c.inc>0?(c.profit/c.inc*100):0;
+    deltaPct=pctA-pctB; document.getElementById('cmp-month').textContent=compareMonth;
+  }else document.getElementById('cmp-month').textContent='—';
+  document.getElementById('cmp-amt').textContent=numberFmt(deltaAmt);
+  document.getElementById('cmp-pct').textContent=(deltaPct||0).toFixed(2)+'%';
+
+  document.getElementById('sum-income').textContent=numberFmt(t.inc);
+  document.getElementById('sum-operating').textContent=numberFmt(t.op);
+  document.getElementById('sum-admin').textContent=numberFmt(t.ad);
+
+  saveLocal();
+}
+
+/* ================= نسخ من شهر المقارنة ================= */
+function copyFromPrevious(){
+  if(!canEdit()) return alert(t('notAllowed'));
+  if(!compareMonth){ return alert(LANG==='ar'?'اختر شهر المقارنة أولاً.':'Pick compare month first.'); }
+  if(!confirm(LANG==='ar'?'نسخ البنود من شهر المقارنة إلى شهر التقرير؟ (لن يشمل المقسّط)':'Copy items (installments excluded)?')) return;
+  const src=ensureMonthBranch(compareMonth,currentBranchId);
+  const dst=ensureMonthBranch(currentMonth,currentBranchId);
+  ['income','operating','admin'].forEach(sec=>{ dst[sec]=JSON.parse(JSON.stringify(src[sec]||[])); });
+  saveLocal(); autoSaveCloud(); renderTable('income'); renderTable('operating'); renderTable('admin'); updateSummary();
+}
+
+/* ================= استيراد/تصدير ================= */
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob); const a=document.createElement('a');
+  a.href=url; a.download='profit-data.json'; a.click(); URL.revokeObjectURL(url);
+}
+document.getElementById('importFile').addEventListener('change',e=>{
+  if(!canEdit()) { e.target.value=''; return alert(t('notAllowed')); }
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{ DB=JSON.parse(r.result); saveLocal(); autoSaveCloud(); location.reload(); } catch{ alert(LANG==='ar'?'ملف غير صالح':'Invalid file'); } };
+  r.readAsText(f);
+});
+
+/* ================= سحابة (Firestore) ================= */
+async function manualSaveCloud(){ await saveToCloud(DB); alert(t('cloudSaved')); }
+async function manualLoadCloud(){ const ok=await loadFromCloud(); alert(ok?t('cloudLoaded'):t('noData')); }
+async function autoLoadCloud(){ return await loadFromCloud(); }
+function autoSaveCloud(){ debounce(async()=>{ await saveToCloud(DB); }, 800)(); }
+function autoSaveUsersCloud(){ debounce(async()=>{ await saveUsersToCloud(); }, 800)(); }
+
+async function saveToCloud(data){
+  if(!window._db){ console.warn(t('noCloud')); return false; }
+  try{
+    const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js");
+    await setDoc(doc(window._db,'profits','main'), {content:JSON.stringify(data), updatedAt:new Date().toISOString()});
+    return true;
+  }catch(e){ console.error(e); return false; }
+}
+async function loadFromCloud(){
+  if(!window._db){ console.warn(t('noCloud')); return false; }
+  try{
+    const { doc, getDoc, setDoc } = await import("https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js");
+    const ref=doc(window._db,'profits','main');
+    const snap=await getDoc(ref);
+    if(!snap.exists()){
+      await setDoc(ref,{content:JSON.stringify(DB), updatedAt:new Date().toISOString()});
+      return false;
+    }
+    const cloud=JSON.parse(snap.data().content||'{}');
+    if(cloud && typeof cloud==='object'){
+      DB = mergeDB(DB, cloud);
+      saveLocal();
+      renderBranches(); renderPage();
+      return true;
+    }
+    return false;
+  }catch(e){ console.error(e); return false; }
+}
+
+async function saveUsersToCloud(){
+  if(!window._db) return false;
+  try{
+    const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js");
+    await setDoc(doc(window._db,'profits','users'), {users: loadUsers(), updatedAt:new Date().toISOString()});
+    return true;
+  }catch(e){ console.error(e); return false; }
+}
+async function loadUsersFromCloud(){
+  if(!window._db) return false;
+  try{
+    const { doc, getDoc } = await import("https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js");
+    const snap=await getDoc(doc(window._db,'profits','users'));
+    if(snap.exists()){
+      const cloudUsers=snap.data().users||[];
+      const map=new Map();
+      [...loadUsers(), ...cloudUsers].forEach(u=>{ map.set(u.username, u); });
+      saveUsers([...map.values()]);
+      return true;
+    }
+    return false;
+  }catch(e){ console.error(e); return false; }
+}
+
+/* ================= دمج قواعد البيانات ================= */
+function mergeDB(local, cloud){
+  const out = JSON.parse(JSON.stringify(local));
+  for(const mm of Object.keys(cloud.months||{})){
+    out.months[mm]=out.months[mm]||{};
+    for(const bid of Object.keys(cloud.months[mm])){
+      out.months[mm][bid]=out.months[mm][bid]||{income:[],operating:[],admin:[]};
+    }
+  }
+  // fix: merge rows per section
+  for(const mm of Object.keys(cloud.months||{})){
+    for(const bid of Object.keys(cloud.months[mm])){
+      ['income','operating','admin'].forEach(sec=>{
+        const loc = (out.months[mm][bid][sec]||[]);
+        const cld = (cloud.months[mm][bid][sec]||[]);
+        out.months[mm][bid][sec] = mergeRows(loc, cld);
+      });
+    }
+  }
+  const idx=new Map(out.installments.map(x=>[x.id,x]));
+  (cloud.installments||[]).forEach(it=>{ if(!idx.has(it.id)) out.installments.push(it); });
+  return out;
+}
+function mergeRows(a,b){
+  const out=[...a];
+  b.forEach(r=>{
+    if(!out.find(x=>x.name===r.name && (+x.amount||0)===(+r.amount||0))) out.push(r);
+  });
+  return out;
+}
+
+/* ================= إدارة المستخدمين ================= */
+function refreshUsersTable(){
+  const tb=document.getElementById('tbl-users'); tb.innerHTML="";
+  loadUsers().forEach(u=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML = `
+      <td>${u.username}</td>
+      <td>${u.role}</td>
+      <td class="no-print d-flex gap-2">
+        <button class="btn btn-sm btn-outline-primary" onclick="prefillUser('${u.username}')">${LANG==='ar'?'تعديل':'Edit'}</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="deleteUser('${u.username}')">${LANG==='ar'?'حذف':'Delete'}</button>
+      </td>`;
+    tb.appendChild(tr);
+  });
+}
+function prefillUser(username){
+  const u=loadUsers().find(x=>x.username===username); if(!u) return;
+  document.getElementById('usr-name').value=u.username;
+  document.getElementById('usr-pass').value='';
+  document.getElementById('usr-role').value=u.role;
+}
+async function addOrUpdateUser(){
+  const name=document.getElementById('usr-name').value.trim();
+  const pass=document.getElementById('usr-pass').value;
+  const role=document.getElementById('usr-role').value;
+  if(!name) return;
+  const arr=loadUsers();
+  const i=arr.findIndex(x=>x.username===name);
+  if(pass){
+    const hash=await sha256(pass);
+    const obj={username:name, passHash:hash, role, updatedAt:new Date().toISOString()};
+    if(i>=0) arr[i]=Object.assign(arr[i], obj); else arr.push(obj);
+  }else{
+    if(i>=0){ arr[i].role=role; arr[i].updatedAt=new Date().toISOString(); }
+    else return; // لا يمكن إنشاء بدون كلمة مرور
+  }
+  saveUsers(arr); refreshUsersTable();
+  document.getElementById('usr-name').value='';
+  document.getElementById('usr-pass').value='';
+  document.getElementById('usr-role').value='viewer';
+}
+function deleteUser(username){
+  if(username==='admin') { alert('لا يمكن حذف حساب admin'); return; }
+  const arr=loadUsers().filter(x=>x.username!==username);
+  saveUsers(arr); refreshUsersTable();
+}
+
+/* ================= أدوات عامة ================= */
+function wipeLocalConfirm(){
+  if(!confirm(t('confirmWipe'))) return;
+  localStorage.removeItem(STORE_KEY);
+  location.reload();
+}
+
+/* ================= أحداث ================= */
+document.getElementById('usersModal').addEventListener('show.bs.modal', refreshUsersTable);
+
+/* ================= تهيئة ================= */
+(function init(){
+  LANG='ar'; applyLang();
+  currentMonth=new Date().toISOString().slice(0,7);
+  compareMonth="";
+  const s=getSession();
+  if(s && s.username){
+    showApp();
+    autoLoadCloud().then(()=> autoSaveCloud());
+    loadUsersFromCloud().then(()=> console.log(t('usersMerged')));
+  }else{
+    document.getElementById('loginScreen').classList.remove('d-none');
+  }
+})();
+
+/* ================= أدوات مساعدة ================= */
+function debounce(fn,ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
+</script>
 </body>
 </html>
